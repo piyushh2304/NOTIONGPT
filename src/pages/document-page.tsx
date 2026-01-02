@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { useDocuments, type Document } from '@/hooks/use-documents';
-import { Editor } from '@/components/editor/editor';
+import Editor from '@/components/editor/editor';
 import { Toolbar } from '@/components/document/toolbar';
 import { Cover } from '@/components/document/cover';
 

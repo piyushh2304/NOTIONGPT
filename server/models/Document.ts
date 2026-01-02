@@ -5,7 +5,7 @@ export interface IDocument extends Document {
     userId: mongoose.Types.ObjectId;
     orgId: mongoose.Types.ObjectId;
     parentDocument?: mongoose.Types.ObjectId;
-    content?: string; // Stored as JSON string (Tiptap JSON)
+    content?: any; // Stored as JSON Object (Tiptap JSON)
     coverImage?: string;
     icon?: string;
     isArchived: boolean;
@@ -19,7 +19,7 @@ const DocumentSchema: Schema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     orgId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
     parentDocument: { type: Schema.Types.ObjectId, ref: 'Document' },
-    content: { type: String }, // JSON stringified
+    content: { type: Schema.Types.Mixed }, // Stored as JSON Object (Notion-like Block Tree)
     coverImage: { type: String },
     icon: { type: String },
     isArchived: { type: Boolean, default: false },

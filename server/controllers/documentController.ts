@@ -73,7 +73,15 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ message: 'Document not found' });
         }
         if (title !== undefined) doc.title = title;
-        if (content !== undefined) doc.content = content;
+        if (content) {
+            try {
+                // If content is sent as a string (frontend behavior), parse it to store as Object
+                doc.content = typeof content === 'string' ? JSON.parse(content) : content;
+            } catch (e) {
+                console.error("Error parsing content JSON", e);
+                doc.content = content; // Fallback
+            }
+        }
         if (coverImage !== undefined) doc.coverImage = coverImage;
         if (icon !== undefined) doc.icon = icon;
         if (isPublished !== undefined) doc.isPublished = isPublished;

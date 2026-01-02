@@ -7,6 +7,8 @@ import LoginPage from "./pages/auth/login";
 import SignupPage from "./pages/auth/signup";
 import DocumentPage from "./pages/document-page";
 
+import HomePage from "./pages/home-page";
+
 function App() {
   return (
     <AuthProvider>
@@ -17,7 +19,7 @@ function App() {
           <Route path="/signup" element={<SignupPage />} />
           {/* Dashboard Shell */}
           <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<div className="p-6">Select a document or create a new one</div>} />
+            <Route index element={<HomePage />} />
             <Route path="documents" element={<div className="p-6">Select a document from sidebar</div>} />
             <Route path="documents/:documentId" element={<DocumentPage />} />
             <Route path="inbox" element={<div className="p-6">Inbox Placeholder</div>} />

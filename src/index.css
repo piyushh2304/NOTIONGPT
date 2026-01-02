@@ -69,62 +69,273 @@
   }
 }
 
-/* Tiptap Placeholder Styles */
-.tiptap .is-empty::before {
+/* Custom Editor Styles */
+.tiptap p.is-editor-empty:first-child::before {
+  color: #adb5bd;
   content: attr(data-placeholder);
   float: left;
-  color: #adb5bd;
+  height: 0;
   pointer-events: none;
-  height: 0;
 }
 
-/* 🛠 Robust Toggle List Chevron & Alignment */
-.details-summary {
-  list-style: none !important;
-  position: relative;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding-left: 4px !important;
-}
-
-.details-summary::-webkit-details-marker {
-  display: none !important;
-}
-
-/* The Chevron Icon - Always ::before */
-.details-summary::before {
-  content: '';
-  display: inline-block !important;
-  /* Ensure it stays visible */
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 7px solid currentColor;
-  opacity: 0.5;
-  transition: transform 0.2s ease;
-  transform-origin: 2px center;
-  flex-shrink: 0;
-}
-
-.details-block[open]>.details-summary::before {
-  transform: rotate(90deg);
-}
-
-/* Fix Placeholder Alignment within Toggle - Use ::after when empty */
-.details-summary.is-empty::after {
+/* For specific nodes if includeChildren is true */
+.tiptap .is-empty::before {
+  color: #adb5bd;
   content: attr(data-placeholder);
-  color: #adb5bd;
+  float: left;
+  height: 0;
   pointer-events: none;
-  white-space: nowrap;
 }
 
-/* Prevent the default TipTap placeholder ::before from overriding the chevron */
-.tiptap .details-summary.is-empty::before {
-  content: '' !important;
-  /* Keep the pseudo-element but remove the placeholder text from it */
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 7px solid currentColor;
+/* Basic editor reset to ensure full width usage like Notion */
+.ProseMirror {
+  min-height: 500px;
+  padding-left: 4rem;
+  /* Create left gutter for drag handle hover zone */
+  /* Ensure editable area has height */
+  outline: none;
+}
+
+.ProseMirror>*:first-child {
+  margin-top: 0 !important;
+}
+
+
+/* Handle visibility logic */
+.drag-handle {
+  position: fixed;
+  opacity: 0;
+  /* Hidden by default */
+  transition: opacity 0.2s ease-in-out;
+  border-radius: 4px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 24' fill='none' stroke='rgba(156, 163, 175, 1)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h6M8 9v6' /%3E%3Ccircle cx='18' cy='9' r='1' fill='rgba(156, 163, 175, 1)' stroke='none' /%3E%3Ccircle cx='18' cy='15' r='1' fill='rgba(156, 163, 175, 1)' stroke='none' /%3E%3Ccircle cx='22' cy='9' r='1' fill='rgba(156, 163, 175, 1)' stroke='none' /%3E%3Ccircle cx='22' cy='15' r='1' fill='rgba(156, 163, 175, 1)' stroke='none' /%3E%3C/svg%3E");
+  width: 3rem;
+  /* Increased from 2.5rem */
+  height: 1.75rem;
+  /* Increased from 1.5rem */
+  transform: translateX(2px);
+  /* Nudge closer to the input (rightwards) */
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  cursor: grab;
+  z-index: 50;
+  pointer-events: auto;
+  /* Ensure it catches mouse events even if opacity is 0 (though opacity 0 usually doesn't block events if pointer-events is auto, wait... opacity 0 DOES handle events in CSS unless pointer-events: none. We WANT it to handle events so we can hover it.) */
+}
+
+/* Show when hovering the handle itself */
+.drag-handle:hover {
+  opacity: 1 !important;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark .drag-handle {
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 24' fill='none' stroke='rgba(209, 213, 219, 1)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h6M8 9v6' /%3E%3Ccircle cx='18' cy='9' r='1' fill='rgba(209, 213, 219, 1)' stroke='none' /%3E%3Ccircle cx='18' cy='15' r='1' fill='rgba(209, 213, 219, 1)' stroke='none' /%3E%3Ccircle cx='22' cy='9' r='1' fill='rgba(209, 213, 219, 1)' stroke='none' /%3E%3Ccircle cx='22' cy='15' r='1' fill='rgba(209, 213, 219, 1)' stroke='none' /%3E%3C/svg%3E");
+}
+
+.dark .drag-handle:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Notion-like Todo List Styles */
+ul.notion-task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+li.notion-task-item {
+  display: flex !important;
+  align-items: flex-start !important;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+li.notion-task-item>label {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+  margin-top: 0.15rem;
+  /* Aligns checkbox with text cap-height */
+  cursor: pointer;
+}
+
+li.notion-task-item>div {
+  flex: 1 1 auto;
+  margin: 0 !important;
+}
+
+li.notion-task-item>div>p {
+  margin: 0 !important;
+  display: block;
+  /* Ensure text behaves as block */
+}
+
+/* Github Dark / One Dark inspired syntax highlighting */
+.hljs-comment,
+.hljs-quote {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-formula {
+  color: #ff7b72;
+}
+
+.hljs-section,
+.hljs-name,
+.hljs-selector-tag,
+.hljs-deletion,
+.hljs-subst {
+  color: #ff7b72;
+}
+
+.hljs-literal {
+  color: #79c0ff;
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type,
+.hljs-selector-class,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-number {
+  color: #79c0ff;
+}
+
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-selector-id,
+.hljs-title {
+  color: #d2a8ff;
+}
+
+.hljs-built_in,
+.hljs-title.class_,
+.hljs-class .hljs-title {
+  color: #ffa657;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-link {
+  text-decoration: underline;
+}
+
+/* Ensure code block text is readable against dark background */
+pre code {
+  color: #c9d1d9;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Table Styles */
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.ProseMirror td,
+.ProseMirror th {
+  min-width: 1em;
+  border: 2px solid #ced4da;
+  padding: 3px 5px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.ProseMirror th {
+  font-weight: bold;
+  text-align: left;
+  background-color: #f1f3f5;
+}
+
+.ProseMirror .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(200, 200, 255, 0.4);
+  pointer-events: none;
+}
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: #adf;
+  pointer-events: none;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.resize-cursor {
+  cursor: ew-resize;
+  cursor: col-resize;
+}
+
+/* Callout Styles */
+/* Assuming Callout is rendered as a div/p with a class or a specific node */
+/* For now, checking if I added Callout extension. I will add it next. */
+/* Using a data-type or class based approach if custom node */
+div[data-type="callout"] {
+  padding: 1rem;
+  background-color: #f1f3f5;
+  border-radius: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+div[data-type="callout"]::before {
+  content: "💡";
+  /* Default icon, can be dynamic */
+  font-size: 1.25rem;
+}
+
+/* Dark mode adjustments */
+.dark .ProseMirror th {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+.dark .ProseMirror td {
+  border-color: #374151;
+}
+
+.dark div[data-type="callout"] {
+  background-color: #1f2937;
 }

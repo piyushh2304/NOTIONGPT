@@ -1,221 +1,166 @@
-import { useEditor, EditorContent, mergeAttributes, Extension } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import TaskItem from '@tiptap/extension-task-item'
-import TaskList from '@tiptap/extension-task-list'
-import Image from '@tiptap/extension-image'
-import Highlight from '@tiptap/extension-highlight'
-import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
-import Placeholder from '@tiptap/extension-placeholder'
-import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
-import FloatingMenuExtension from '@tiptap/extension-floating-menu'
-import Heading from '@tiptap/extension-heading'
-
-import { EditorBubbleMenu } from './editor-bubble-menu'
-import { SlashCommand } from './extensions/slash-command'
-import { DragHandle } from './drag-handle'
+import { EditorRoot, EditorContent } from "novel";
+import { defaultExtensions } from "./extensions";
+import { EditorBubbleMenu } from "./editor-bubble";
+import { slashCommand } from "./slash-command";
+import { useState, useEffect, useRef, useCallback } from "react";
+import "tippy.js/dist/tippy.css";
 
 interface EditorProps {
-  onChange: (value: string) => void
-  initialContent?: string
-  editable?: boolean
+  onChange: (value: string) => void;
+  initialContent?: string;
 }
 
-// Your Custom Heading UI (kept exactly)
-const CustomHeading = Heading.extend({
-  renderHTML({ node, HTMLAttributes }) {
-    const hasLevel = this.options.levels.includes(node.attrs.level)
-    const level = hasLevel ? node.attrs.level : this.options.levels[0]
+import { DragHandleMenu } from "./drag-handle-menu";
+import { useCurrentEditor } from "@tiptap/react";
 
-    const baseStyle = `max-width:100%;width:100%;white-space:break-spaces;word-break:break-word;caret-color:var(--c-texPri);
-      padding-top:3px;padding-bottom:3px;padding-inline:2px;font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,
-      "Segoe UI",Helvetica,Apple Color Emoji,Arial,sans-serif;font-weight:600;line-height:1.3;margin:0;min-height:1em;color:var(--c-texPri);`
+const DragHandleListener = () => {
+    const { editor } = useCurrentEditor();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [menuPos, setMenuPos] = useState<{x: number, y: number} | null>(null);
 
-    return [
-      `h${level}`,
-      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-        class: "content-editable-leaf-rtl notranslate",
-        style: `${baseStyle} font-size:${level === 1 ? "1.875em" : level === 2 ? "1.5em" : "1.25em"};`,
-        placeholder: `Heading ${level}`,
-        spellcheck: "true",
-        "data-content-editable-leaf": "true",
-      }),
-      0
-    ]
-  }
-})
+    useEffect(() => {
+        if (!editor) return;
 
-// 🔥 New Notion-like INLINE Toggle (arrow at END)
-const ToggleListItem = Extension.create({
-  name: 'toggleListItem',
+        const handleClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.classList.contains('drag-handle')) {
+                const rect = target.getBoundingClientRect();
+                const isPlusIcon = e.clientX - rect.left < rect.width / 2;
 
-  addNodes() {
-    return [
-      {
-        name: 'toggleListItem',
-        group: 'block',
-        content: 'inline*',
-        draggable: true,
+                if (isPlusIcon) {
+                    // Plus icon clicked - Add new block
+                    e.preventDefault();
+                    e.stopPropagation();
 
-        addAttributes() {
-          return { open: { default: false } }
-        },
+                    const x = rect.right + 10;
+                    const y = rect.top + (rect.height / 2);
+                    const pos = editor.view.posAtCoords({ left: x, top: y });
 
-        parseHTML() {
-          return [{ tag: 'div[data-toggle-item]' }]
-        },
+                    if (pos) {
+                        const node = editor.state.doc.nodeAt(pos.pos);
+                        if (node) {
+                            const endPos = pos.pos + node.nodeSize;
+                            editor.chain().focus().insertContentAt(endPos, { type: 'paragraph' }).run();
+                        } else {
+                            editor.chain().focus().createParagraphNear().run();
+                        }
+                    }
+                } else {
+                    // Drag icon (::) clicked - Open Menu
+                    e.preventDefault(); 
+                    e.stopPropagation();
+                    
+                    // Select the node associated with the handle
+                    const x = rect.right + 10;
+                    const y = rect.top + (rect.height / 2);
+                    const pos = editor.view.posAtCoords({ left: x, top: y });
+                    
+                    if (pos) {
+                        // We use setNodeSelection to select the block
+                        editor.commands.setNodeSelection(pos.pos);
+                    }
 
-        renderHTML({ node }) {
-          return [
-            'div',
-            {
-              'data-toggle-item': 'true',
-              class: 'flex items-center justify-between gap-2 w-full m-0 p-0',
-              style: 'margin:0;padding:0;line-height:1.2;min-height:24px;'
-            },
-            [
-              'div',
-              { class: 'flex items-center gap-1 flex-1' },
-              ['span', { class: 'font-bold', style: 'font-size:20px;' }, '+'],
-              ['span', { class: 'font-mono opacity-70', style: 'font-size:16px;' }, '::'],
-              ['span', { class: 'flex-1' }, 0]
-            ],
-            [
-              'span',
-              {
-                class: 'toggle-arrow cursor-pointer select-none text-lg',
-                onclick: 'this.parentElement.dispatchEvent(new Event("toggle-click"))',
-                style: 'margin:0;padding:0;display:inline-flex;'
-              },
-              node.attrs.open ? '▼' : '▶'
-            ]
-          ]
-        },
-
-        addKeyboardShortcuts() {
-          return {
-            Backspace: () => {
-              const { $anchor } = this.editor.state.selection
-              const parent = $anchor.parent
-              if (parent.type.name === 'toggleListItem' && parent.textContent.length === 0) {
-                return this.editor.chain().focus().deleteNode('toggleListItem').run()
-              }
-              return false
+                    setMenuPos({ x: e.clientX, y: e.clientY + 10 });
+                    setMenuOpen(true);
+                }
             }
-          }
+        };
+
+        document.addEventListener('click', handleClick);
+        return () => document.removeEventListener('click', handleClick);
+    }, [editor]);
+
+    return (
+        <DragHandleMenu 
+            isOpen={menuOpen} 
+            onClose={() => setMenuOpen(false)} 
+            position={menuPos} 
+        />
+    );
+}
+
+const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdate: (editor: any) => void }) => {
+    const { editor } = useCurrentEditor();
+
+    const handleContainerClick = (e: React.MouseEvent) => {
+        if (!editor) return;
+        
+        if (e.target === e.currentTarget) {
+            e.preventDefault();
+            const lastNode = editor.state.doc.lastChild;
+            
+            // If the last node is a pageLink, insert a new paragraph at the end
+            if (lastNode && lastNode.type.name === 'pageLink') {
+                 editor.chain()
+                       .insertContentAt(editor.state.doc.content.size, { type: 'paragraph' })
+                       .focus()
+                       .scrollIntoView()
+                       .run();
+            } else {
+                 // Otherwise focus the end. 
+                 // If the last node is already an empty paragraph, this focuses it.
+                 editor.chain().focus('end').run();
+            }
         }
-      }
-    ]
-  },
+    };
 
-  addCommands() {
-    return {
-      setToggle:
-        () =>
-        ({ chain, state }) => {
-          const pos = state.selection.from
-          return chain()
-            .focus()
-            .insertContentAt(pos, { type: 'toggleListItem', content: [{ type: 'text', text: '' }] })
-            .focus(pos + 1)
-            .run()
-        }
-    }
-  }
-})
+    return (
+        <div 
+            className="relative min-h-[500px] w-full max-w-screen-lg bg-white sm:mb-[calc(20vh)] sm:rounded-lg border-0 shadow-none p-12 px-8 sm:px-12 cursor-text"
+            onClick={handleContainerClick}
+        >
+             <EditorContent
+                extensions={[...defaultExtensions, slashCommand]}
+                initialContent={initialContent}
+                className="outline-none" // Remove default outline
+                editorProps={{
+                     attributes: {
+                         class: 'prose prose-lg dark:prose-invert prose-headings:font-title font-default focus:outline-none max-w-full',
+                     }
+                }}
+                onUpdate={({ editor }) => onUpdate(editor)}
+             >
+                 <EditorBubbleMenu />
+                 <DragHandleListener />
+             </EditorContent>
+        </div>
+    );
+}
 
-export const Editor = ({ onChange, initialContent, editable = true }: EditorProps) => {
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ heading: false }),
+export default function Editor({ onChange, initialContent }: EditorProps) {
+  const [content, setContent] = useState<any>(initialContent ? JSON.parse(initialContent) : undefined);
 
-      CustomHeading,
-      ToggleListItem,
-
-      TaskList.configure({ HTMLAttributes: { class: "not-prose p-0 my-0 list-none" } }),
-      TaskItem.configure({ nested: true, HTMLAttributes: { class: "flex gap-2 items-start mb-0 py-0.5" } }),
-
-      Highlight,
-      Underline,
-      Link.configure({ openOnClick: false }),
-      Image,
-
-      Placeholder.configure({
-        placeholder: ({ node, editor, pos }) => {
-          if (node.type.name === 'heading') return `Heading ${node.attrs.level}`
-          if (node.type.name === 'toggleListItem') return "Toggle"
-          if (node.type.name === 'codeBlock') return "Code"
-          if (node.type.name === 'blockquote') return "Empty quote"
-
-          if (node.type.name === 'paragraph') {
-            try {
-              const $pos = editor.state.doc.resolve(pos)
-              for (let d = $pos.depth; d > 0; d--) {
-                const ancestor = $pos.node(d)
-                if (ancestor?.type.name === 'listItem') return "List"
-                if (ancestor?.type.name === 'taskItem') return "To-do"
-                if (ancestor?.type.name === 'toggleListItem') return "Toggle"
-              }
-            } catch {}
-            return "Write, press '/' for commands..."
-          }
-          return ""
-        },
-        includeChildren: true,
-        showOnlyCurrent: false,
-      }),
-
-      BubbleMenuExtension,
-      FloatingMenuExtension,
-      SlashCommand.configure({
-        suggestion: { char: '/', startOfLine: false }
-      })
-    ],
-
-    content: initialContent ? JSON.parse(initialContent) : '',
-    onUpdate: ({ editor }) => {
-      const json = editor.getJSON()
-      onChange(JSON.stringify(json))
-      return true
-    },
-
-    editorProps: {
-      attributes: { class: "outline-none min-h-[50vh] prose prose-stone dark:prose-invert max-w-none px-14" },
-
-      handleKeyDown: (view, event) => {
-        // Keep your existing top-backspace behavior
-        if (event.key === 'Backspace' && view.state.selection.$anchor.pos === 1) {
-          const titleInput = window.document.querySelector('textarea')
-          titleInput?.focus()
-          return true
-        }
-        return false
+  useEffect(() => {
+    if (!initialContent) {
+      const saved = localStorage.getItem("novel-content");
+      if (saved) {
+        setContent(JSON.parse(saved));
       }
     }
-  })
+  }, [initialContent]);
 
-  if (!editor) return null
+    const debounce = (func: Function, delay: number) => {
+        const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+        
+        return useCallback((...args: any[]) => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            timeoutRef.current = setTimeout(() => {
+                func(...args);
+            }, delay);
+        }, [func, delay]);
+    };
 
-  // Toggle open/close behavior
-  editor.view.dom.addEventListener('toggle-click', () => {
-    const { $head } = editor.state.selection
-    const node = $head.parent
-    if (node.type.name === 'toggleListItem') {
-      editor.chain().updateAttributes('toggleListItem', { open: !node.attrs.open }).run()
-    }
-  })
+  const handleUpdate = (editor: any) => {
+      const json = editor.getJSON();
+      window.localStorage.setItem("novel-content", JSON.stringify(json));
+      onChange(JSON.stringify(json));
+  };
+
+  const debouncedUpdate = debounce(handleUpdate, 500);
 
   return (
-    <div className="w-full pb-40 relative group">
-      {editable && (
-        <>
-          <EditorBubbleMenu editor={editor} />
-          <DragHandle editor={editor} />
-        </>
-      )}
-      <EditorContent editor={editor} />
-    </div>
+    <EditorRoot>
+       <EditorView initialContent={content} onUpdate={debouncedUpdate} />
+    </EditorRoot>
   )
 }
-
-export default Editor

@@ -129,8 +129,25 @@ export const useDocuments = () => {
         }
     };
 
+    const getAllDocuments = async () => {
+        try {
+            // No parentDocument query param = fetch all
+            const response = await fetch(`/api/documents`, {
+               headers: { 'Content-Type': 'application/json' },
+               credentials: 'include' 
+            });
+            if (!response.ok) throw new Error('Failed to fetch');
+            const data = await response.json();
+            return data as Document[];
+        } catch (error) {
+            console.error(error);
+            return [];
+        }
+    };
+
     return {
         getDocuments,
+        getAllDocuments,
         createDocument,
         updateDocument,
         archiveDocument,
