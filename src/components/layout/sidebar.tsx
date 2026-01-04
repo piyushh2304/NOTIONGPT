@@ -5,7 +5,8 @@ import {
   Settings, 
   PlusCircle, 
   ChevronsLeft,
-  Home
+  Home,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -39,6 +40,7 @@ export function Sidebar({ className }: { className?: string }) {
   const navItems = [
     { label: "Home", icon: Home, href: "/dashboard" },
     { label: "Search", icon: Search, href: "/dashboard/search" },
+    { label: "AI Chat", icon: Sparkles, href: "/dashboard/ai-chat" },
     { label: "Settings", icon: Settings, href: "/dashboard/settings" },
   ];
 

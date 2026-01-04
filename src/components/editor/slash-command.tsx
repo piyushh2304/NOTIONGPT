@@ -189,6 +189,15 @@ const getSuggestionItems = () => [
        editor.chain().focus().deleteRange(range).insertContent("📄 [New Page] ").run();
     },
   },
+  {
+    title: "Board",
+    description: "Track items in a Kanban board.",
+    searchTerms: ["board", "kanban", "manage"],
+    icon: <ListTree className="h-4 w-4" />, // Reusing ListTree or could import 'Kanban' or similar if available, ListTree is fine
+    command: ({ editor, range }: CommandProps) => {
+      editor.chain().focus().deleteRange(range).insertKanbanBoard().run();
+    },
+  },
 ];
 
 const renderItems = () => {

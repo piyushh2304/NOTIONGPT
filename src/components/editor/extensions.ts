@@ -2,6 +2,8 @@ import StarterKit from "@tiptap/starter-kit";
 import { TaskItem } from "@tiptap/extension-task-item";
 import { TaskList } from "@tiptap/extension-task-list";
 import { Heading } from "@tiptap/extension-heading";
+import { Table } from '@tiptap/extension-table'
+import { TableCell } from '@tiptap/extension-table-cell'
 import Details from "@tiptap/extension-details";
 import DetailsSummary from "@tiptap/extension-details-summary";
 import DetailsContent from "@tiptap/extension-details-content";
@@ -13,14 +15,13 @@ import { Underline } from "@tiptap/extension-underline";
 import { Image } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
 import { Placeholder } from "@tiptap/extension-placeholder";
+import GlobalDragHandle from "tiptap-extension-global-drag-handle";
 import { CodeBlockExtension } from "./extensions/code-block";
 import { CalloutExtension } from "./extensions/callout";
 import { PageLink } from "./extensions/page-link";
-import GlobalDragHandle from "tiptap-extension-global-drag-handle";
-import { Table } from '@tiptap/extension-table'
-import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { TableRow } from '@tiptap/extension-table-row'
+import { KanbanBoardExtension } from "./extensions/kanban";
 
 // Mock file uploader for drag/drop images
 const fileUploadHandler = (file: File) => {
@@ -119,24 +120,27 @@ export const defaultExtensions = [
                 return "Section name";
             }
 
-            // Check if paragraph is inside a list item
+            // Check if paragraph is inside a list item or table
             if (node.type.name === "paragraph") {
-                try {
-                    const parent = editor.state.doc.resolve(pos).parent;
-                    if (parent.type.name === 'listItem') {
-                        return "List";
+                const $pos = editor.state.doc.resolve(pos);
+                for (let d = $pos.depth; d > 0; d--) {
+                    const ancestor = $pos.node(d);
+                    if (
+                        ancestor.type.name === 'listItem' ||
+                        ancestor.type.name === 'taskItem' ||
+                        ancestor.type.name === 'tableCell' ||
+                        ancestor.type.name === 'tableHeader'
+                    ) {
+                        return "";
                     }
-                    if (parent.type.name === 'taskItem') {
-                        return "To-do";
-                    }
-                } catch (e) {
-                    // ignore
                 }
             }
 
-            return "Press '/' for commands...";
+            return "Write, press 'space' for AI, '/' for commands...";
         },
         includeChildren: true,
+        showOnlyWhenEditable: true,
+        showOnlyCurrent: true,
     }),
     GlobalDragHandle.configure({
         dragHandleWidth: 64, // Width of the drag handle zone (adds padding)
@@ -237,15 +241,8 @@ export const defaultExtensions = [
     TableHeader,
     TableCell,
     CalloutExtension,
-    Details.configure({
-        persist: true,
-        HTMLAttributes: {
-            class: 'details',
-        },
-    }),
-    DetailsContent,
-    DetailsSummary,
     PageLink,
+    KanbanBoardExtension,
 ];
 
 // Optional: handle drag & drop image upload

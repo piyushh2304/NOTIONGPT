@@ -6,6 +6,7 @@ import DashboardLayout from "./components/layout/dashboard-layout";
 import LoginPage from "./pages/auth/login";
 import SignupPage from "./pages/auth/signup";
 import DocumentPage from "./pages/document-page";
+import AiChatPage from "./pages/ai-chat-page";
 
 import HomePage from "./pages/home-page";
 
@@ -22,6 +23,7 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path="documents" element={<div className="p-6">Select a document from sidebar</div>} />
             <Route path="documents/:documentId" element={<DocumentPage />} />
+            <Route path="ai-chat" element={<AiChatPage />} />
             <Route path="inbox" element={<div className="p-6">Inbox Placeholder</div>} />
             <Route path="settings" element={<div className="p-6">Settings Placeholder</div>} />
             {/* Catch-all for dashboard sub-routes */}

@@ -14,8 +14,13 @@ export type Document = {
     coverImage?: string;
     isArchived: boolean;
     isPublished: boolean;
+    isPublic: boolean;
+    allowedUsers: string[];
     createdAt: string;
     updatedAt: string;
+    flashcards?: Array<{ front: string, back: string }>;
+    mindmap?: { initialNodes: any[], initialEdges: any[] };
+    quiz?: Array<{ question: string, options: string[], answer: string }>;
 };
 
 export const useDocuments = () => {
@@ -63,7 +68,7 @@ export const useDocuments = () => {
     
     const updateDocument = async (id: string, updates: Partial<Document>) => {
         try {
-             const response = await fetch(`/api/documents/${id}`, {
+            const response = await fetch(`/api/documents/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',

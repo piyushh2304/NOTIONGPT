@@ -1,19 +1,45 @@
 import { NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { Check, ChevronDown, Copy } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export const CodeBlockComponent = ({
-  node: {
-    attrs: { language: defaultLanguage },
-  },
+  node,
   updateAttributes,
   extension,
 }: NodeViewProps) => {
+  const { language: defaultLanguage } = node.attrs;
   const [copied, setCopied] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
 
   const languages = extension.options.lowlight.listLanguages()
+
+  // Auto-detect language
+  useEffect(() => {
+    if (defaultLanguage && defaultLanguage !== 'auto') return;
+
+    const content = node.textContent;
+    if (!content || content.length < 10) return; // Wait for some content
+
+    const handler = setTimeout(() => {
+        try {
+            const result = extension.options.lowlight.highlightAuto(content);
+            // highlightAuto returns { value: string, language: string, relevance: number, ... } logic depends on version.
+            // lowlight wraps highlight.js. creating lowlight(common) -> lowlight.highlightAuto(text)
+            // It usually returns generic 'data' object or the result directly.
+            // Let's console log to be safe or assuming modern lowlight structure: result.data.language or result.language
+            
+            // Common Lowlight/HighlightJS structure: result.language
+            if (result && result.language && result.language !== defaultLanguage) {
+                updateAttributes({ language: result.language });
+            }
+        } catch (e) {
+            console.error("Language detection failed", e);
+        }
+    }, 1000);
+
+    return () => clearTimeout(handler);
+  }, [node.textContent, defaultLanguage, extension.options.lowlight, updateAttributes]);
   
   // ... (rest of component logic if I was replacing whole file, but I am targeting specific chunks?)
   // Actually, replace_file_content replaces the chunk. I need to be careful with range.

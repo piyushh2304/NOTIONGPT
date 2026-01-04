@@ -11,6 +11,7 @@ interface EditorProps {
 }
 
 import { DragHandleMenu } from "./drag-handle-menu";
+import { TableHoverMenu } from "./table-hover-menu";
 import { useCurrentEditor } from "@tiptap/react";
 
 const DragHandleListener = () => {
@@ -85,12 +86,16 @@ const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdat
     const handleContainerClick = (e: React.MouseEvent) => {
         if (!editor) return;
         
-        if (e.target === e.currentTarget) {
-            e.preventDefault();
+        const target = e.target as HTMLElement;
+        const isWrapper = target === e.currentTarget;
+        const isProseMirror = target.classList.contains('ProseMirror');
+
+        if (isWrapper || isProseMirror) {
             const lastNode = editor.state.doc.lastChild;
             
-            // If the last node is a pageLink, insert a new paragraph at the end
-            if (lastNode && lastNode.type.name === 'pageLink') {
+            // If the last node is a pageLink or table, insert a new paragraph at the end
+            if (lastNode && (lastNode.type.name === 'pageLink' || lastNode.type.name === 'table')) {
+                 e.preventDefault();
                  editor.chain()
                        .insertContentAt(editor.state.doc.content.size, { type: 'paragraph' })
                        .focus()
@@ -99,6 +104,7 @@ const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdat
             } else {
                  // Otherwise focus the end. 
                  // If the last node is already an empty paragraph, this focuses it.
+                 e.preventDefault();
                  editor.chain().focus('end').run();
             }
         }
@@ -122,19 +128,67 @@ const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdat
              >
                  <EditorBubbleMenu />
                  <DragHandleListener />
+                 <TableHoverMenu />
              </EditorContent>
         </div>
     );
 }
 
 export default function Editor({ onChange, initialContent }: EditorProps) {
-  const [content, setContent] = useState<any>(initialContent ? JSON.parse(initialContent) : undefined);
+  const [content, setContent] = useState<any>(() => {
+      if (!initialContent) return undefined;
+      try {
+          return typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
+      } catch (e) {
+          console.warn("Failed to parse initialContent as JSON, treating as plain text:", e);
+          // Fallback: Create a valid Tiptap document with the plain text string
+          return {
+            type: "doc",
+            content: [
+                {
+                    type: "paragraph",
+                    content: [
+                        {
+                            type: "text",
+                            text: typeof initialContent === 'string' ? initialContent : String(initialContent)
+                        }
+                    ]
+                }
+            ]
+          };
+      }
+  });
 
   useEffect(() => {
-    if (!initialContent) {
+    // If we passed initialContent, respect it (handling both string/object)
+    if (initialContent) {
+        try {
+            setContent(typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent);
+        } catch (e) {
+            console.warn("Failed to parse initialContent in useEffect, treating as plain text:", e);
+             // Fallback: Create a valid Tiptap document with the plain text string
+             setContent({
+                type: "doc",
+                content: [
+                    {
+                        type: "paragraph",
+                        content: [
+                            {
+                                type: "text",
+                                text: typeof initialContent === 'string' ? initialContent : String(initialContent)
+                            }
+                        ]
+                    }
+                ]
+              });
+        }
+    } else {
+      // Fallback to local storage if no initialContent
       const saved = localStorage.getItem("novel-content");
       if (saved) {
-        setContent(JSON.parse(saved));
+        try {
+            setContent(JSON.parse(saved));
+        } catch(e) { console.error("Failed to parse local storage content", e); }
       }
     }
   }, [initialContent]);
