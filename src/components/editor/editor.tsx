@@ -14,6 +14,36 @@ import { DragHandleMenu } from "./drag-handle-menu";
 import { TableHoverMenu } from "./table-hover-menu";
 import { useCurrentEditor } from "@tiptap/react";
 
+const ensureValidDoc = (content: any) => {
+    if (!content) return { type: "doc", content: [] };
+    
+    // If it's already a valid doc with a content array, just return it
+    if (content.type === "doc" && Array.isArray(content.content)) {
+        return content;
+    }
+
+    // If it's an array, wrap it in a doc
+    if (Array.isArray(content)) {
+        return { type: "doc", content: content.filter(n => n && typeof n === 'object' && n.type) };
+    }
+
+    // If it's a single block object, wrap it in a doc
+    if (content && typeof content === 'object' && content.type) {
+        return { type: "doc", content: [content] };
+    }
+
+    // Final fallback
+    return {
+        type: "doc",
+        content: [
+            {
+                type: "paragraph",
+                content: [{ type: "text", text: typeof content === 'string' ? content : "Invalid content format" }]
+            }
+        ]
+    };
+};
+
 const DragHandleListener = () => {
     const { editor } = useCurrentEditor();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -122,6 +152,7 @@ const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdat
                 editorProps={{
                      attributes: {
                          class: 'prose prose-lg dark:prose-invert prose-headings:font-title font-default focus:outline-none max-w-full',
+                         spellcheck: 'false',
                      }
                 }}
                 onUpdate={({ editor }) => onUpdate(editor)}
@@ -138,24 +169,11 @@ export default function Editor({ onChange, initialContent }: EditorProps) {
   const [content, setContent] = useState<any>(() => {
       if (!initialContent) return undefined;
       try {
-          return typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
+          const parsed = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
+          return ensureValidDoc(parsed);
       } catch (e) {
           console.warn("Failed to parse initialContent as JSON, treating as plain text:", e);
-          // Fallback: Create a valid Tiptap document with the plain text string
-          return {
-            type: "doc",
-            content: [
-                {
-                    type: "paragraph",
-                    content: [
-                        {
-                            type: "text",
-                            text: typeof initialContent === 'string' ? initialContent : String(initialContent)
-                        }
-                    ]
-                }
-            ]
-          };
+          return ensureValidDoc(initialContent);
       }
   });
 
@@ -163,24 +181,11 @@ export default function Editor({ onChange, initialContent }: EditorProps) {
     // If we passed initialContent, respect it (handling both string/object)
     if (initialContent) {
         try {
-            setContent(typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent);
+            const parsed = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
+            setContent(ensureValidDoc(parsed));
         } catch (e) {
             console.warn("Failed to parse initialContent in useEffect, treating as plain text:", e);
-             // Fallback: Create a valid Tiptap document with the plain text string
-             setContent({
-                type: "doc",
-                content: [
-                    {
-                        type: "paragraph",
-                        content: [
-                            {
-                                type: "text",
-                                text: typeof initialContent === 'string' ? initialContent : String(initialContent)
-                            }
-                        ]
-                    }
-                ]
-              });
+            setContent(ensureValidDoc(initialContent));
         }
     } else {
       // Fallback to local storage if no initialContent

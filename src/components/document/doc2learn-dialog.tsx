@@ -17,13 +17,19 @@ interface Doc2LearnDialogProps {
     onFlashcardsGenerated?: (cards: any[]) => void;
     onMindMapGenerated?: (data: any) => void;
     onQuizGenerated?: (data: any[]) => void;
+    onStudyPlanGenerated?: (data: any) => void;
+    onCodingQuestionsGenerated?: (data: any[]) => void;
     defaultType?: string;
     hasFlashcards?: boolean;
     hasMindMap?: boolean;
     hasQuiz?: boolean;
+    hasStudyPlan?: boolean;
+    hasCodingQuestions?: boolean;
     onViewFlashcards?: () => void;
     onViewMindMap?: () => void;
     onViewQuiz?: () => void;
+    onViewStudyPlan?: () => void;
+    onViewCodingQuestions?: () => void;
 }
 
 export const Doc2LearnDialog = ({ 
@@ -33,13 +39,19 @@ export const Doc2LearnDialog = ({
     onFlashcardsGenerated,
     onMindMapGenerated,
     onQuizGenerated,
+    onStudyPlanGenerated,
+    onCodingQuestionsGenerated,
     defaultType = "quiz",
     onViewFlashcards,
     onViewMindMap,
     onViewQuiz,
+    onViewStudyPlan,
+    onViewCodingQuestions,
     hasFlashcards,
     hasMindMap,
-    hasQuiz
+    hasQuiz,
+    hasStudyPlan,
+    hasCodingQuestions
 }: Doc2LearnDialogProps) => {
     const [open, setOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -75,45 +87,47 @@ export const Doc2LearnDialog = ({
 
             const data = await response.json();
 
-            // Special handling for Structured Data (Flashcards, MindMap, Quiz)
+            // Special handling for Structured Data (Flashcards, MindMap, Quiz, Study Plan, Coding Questions)
             // Save to current document meta instead of new doc
-            const structuredTypes = ['flashcards', 'mindmap', 'quiz'];
+            const structuredTypes = ['flashcards', 'mindmap', 'quiz', 'plan', 'coding'];
             
             if (structuredTypes.includes(type)) {
                 let parsedData;
                 try {
                     let contentToParse = data.content;
                     if (typeof contentToParse === 'string') {
-                        // 1. Remove markdown code blocks
+                        // 1. Initial Cleanup: Remove markdown and excessive whitespace
                         contentToParse = contentToParse.replace(/```json\n?|```/g, '').trim();
-                        
-                        // 2. Find first open brace/bracket and last close brace/bracket
-                        const firstCurly = contentToParse.indexOf('{');
-                        const firstSquare = contentToParse.indexOf('[');
-                        
-                        let start = -1;
-                        let end = -1;
 
-                        // Determine if we are looking for an Object or Array
-                        if (firstCurly !== -1 && (firstSquare === -1 || firstCurly < firstSquare)) {
-                             start = firstCurly;
-                             end = contentToParse.lastIndexOf('}');
-                        } else if (firstSquare !== -1) {
-                             start = firstSquare;
-                             end = contentToParse.lastIndexOf(']');
+                        // 2. Extract JSON structure (handle cases where AI adds preamble)
+                        const firstBracket = contentToParse.indexOf('[');
+                        const firstBrace = contentToParse.indexOf('{');
+                        const start = (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) ? firstBracket : firstBrace;
+                        
+                        const lastBracket = contentToParse.lastIndexOf(']');
+                        const lastBrace = contentToParse.lastIndexOf('}');
+                        const end = Math.max(lastBracket, lastBrace);
+
+                        if (start !== -1 && end !== -1 && end > start) {
+                            contentToParse = contentToParse.substring(start, end + 1);
                         }
 
-                        if (start !== -1 && end !== -1) {
-                             contentToParse = contentToParse.substring(start, end + 1);
-                        }
+                        // 3. Robust Repair: Handle unescaped newlines inside string values
+                        // This identifies content between double quotes and replaces literal newlines with \n
+                        contentToParse = contentToParse.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/gs, (match: string) => {
+                            return match.replace(/\r?\n/g, '\\n');
+                        });
+
+                        // 4. Sanitize trailing commas (common AI mistake)
+                        contentToParse = contentToParse.replace(/,(\s*[\]}])/g, '$1');
 
                         parsedData = JSON.parse(contentToParse);
                     } else {
                         parsedData = contentToParse;
                     }
                 } catch (e) {
-                    console.error(`Failed to parse ${type} JSON`, e);
-                    throw new Error(`AI generated invalid ${type} format`);
+                    console.error(`Failed to parse ${type} JSON. Content:`, data.content, e);
+                    throw new Error(`AI generated invalid ${type} format. Please try again.`);
                 }
 
                 const updates: any = {};
@@ -140,6 +154,14 @@ export const Doc2LearnDialog = ({
                     updates.quiz = parsedData;
                     if (onQuizGenerated) onQuizGenerated(parsedData);
                     toast.success("Quiz generated! Click 'Start Quiz' to begin.");
+                } else if (type === 'plan') {
+                    updates.studyPlan = parsedData;
+                    if (onStudyPlanGenerated) onStudyPlanGenerated(parsedData);
+                    toast.success("Study Plan generated! Click 'View Plan' to open.");
+                } else if (type === 'coding') {
+                    updates.codingQuestions = parsedData;
+                    if (onCodingQuestionsGenerated) onCodingQuestionsGenerated(parsedData);
+                    toast.success("Coding Questions generated! Click 'Practice' to view.");
                 }
 
                 await updateDocument(documentId, updates);
@@ -189,8 +211,8 @@ export const Doc2LearnDialog = ({
         { id: 'quiz', label: hasQuiz ? 'Start Quiz' : 'MCQ Quiz', icon: FileQuestion, color: "text-orange-500", bg: "bg-orange-500/10" },
         { id: 'flashcards', label: hasFlashcards ? 'Review Flashcards' : 'Flashcards', icon: Layers, color: "text-blue-500", bg: "bg-blue-500/10" },
         { id: 'mindmap', label: hasMindMap ? 'View Mind Map' : 'Mind Map', icon: Brain, color: "text-purple-500", bg: "bg-purple-500/10" },
-        { id: 'plan', label: 'Study Plan', icon: Calendar, color: "text-green-500", bg: "bg-green-500/10" },
-        { id: 'coding', label: 'Coding Qs', icon: Code, color: "text-pink-500", bg: "bg-pink-500/10" },
+        { id: 'plan', label: hasStudyPlan ? 'View Plan' : 'Study Plan', icon: Calendar, color: "text-green-500", bg: "bg-green-500/10" },
+        { id: 'coding', label: hasCodingQuestions ? 'Practice Qs' : 'Coding Qs', icon: Code, color: "text-pink-500", bg: "bg-pink-500/10" },
     ];
 
     const handlePresetClick = (preset: any) => {
@@ -207,6 +229,16 @@ export const Doc2LearnDialog = ({
         if (preset.id === 'quiz' && hasQuiz && onViewQuiz) {
             setOpen(false);
             onViewQuiz();
+            return;
+        }
+        if (preset.id === 'plan' && hasStudyPlan && onViewStudyPlan) {
+            setOpen(false);
+            onViewStudyPlan();
+            return;
+        }
+        if (preset.id === 'coding' && hasCodingQuestions && onViewCodingQuestions) {
+            setOpen(false);
+            onViewCodingQuestions();
             return;
         }
         handleGenerate(preset.id);

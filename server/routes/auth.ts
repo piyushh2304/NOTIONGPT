@@ -98,13 +98,66 @@ router.post('/logout', (req, res) => {
 router.get('/me', protect, async (req: AuthRequest, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
+        if (user) {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
+            if (lastActive) {
+                const lastDate = new Date(lastActive.getFullYear(), lastActive.getMonth(), lastActive.getDate());
+
+                const diffTime = today.getTime() - lastDate.getTime();
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 1) {
+                    // Successive day
+                    user.streakCount += 1;
+                    user.reviewsToday = 0; // Reset for new day
+                    user.lastActiveDate = now;
+                    await user.save();
+                } else if (diffDays > 1) {
+                    // Broken streak
+                    user.streakCount = 1;
+                    user.reviewsToday = 0; // Reset for new day
+                    user.lastActiveDate = now;
+                    await user.save();
+                } else if (!user.lastActiveDate) {
+                    // First time activity
+                    user.streakCount = 1;
+                    user.reviewsToday = 0;
+                    user.lastActiveDate = now;
+                    await user.save();
+                }
+            } else {
+                user.streakCount = 1;
+                user.lastActiveDate = now;
+                await user.save();
+            }
+        }
         const org = await Organization.findOne({ 'members.userId': req.user.id });
         res.json({
             ...user?.toObject(),
             orgId: org?._id
         });
     } catch (error) {
+        console.error("Streak update error:", error);
         res.status(500).json({ message: 'Server error' });
     }
 });
+
+// @route POST /api/auth/activity
+router.post('/activity', protect, async (req: AuthRequest, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (user) {
+            user.reviewsToday = (user.reviewsToday || 0) + 1;
+            await user.save();
+            return res.json({ reviewsToday: user.reviewsToday });
+        }
+        res.status(404).json({ message: "User not found" });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 export default router;

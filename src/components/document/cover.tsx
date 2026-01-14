@@ -45,10 +45,10 @@ export const Cover = ({ url, preview, onRemove: onRemoveCallback, onChange: onCh
             />
         )}
         {url && !preview && (
-            <div className="opacity-0 group-hover:opacity-100 absolute bottom-5 right-5 flex items-center gap-x-2">
+            <div className="opacity-0 group-hover:opacity-100 absolute bottom-5 right-5 flex items-center gap-x-2 transition-opacity duration-300">
                 <CoverPicker onChange={onChange} asChild>
                     <Button
-                        className="text-muted-foreground text-xs"
+                        className="text-white hover:bg-white/20 bg-black/30 backdrop-blur-sm border-white/20 text-xs shadow-md"
                         variant="outline"
                         size="sm"
                     >
@@ -58,7 +58,7 @@ export const Cover = ({ url, preview, onRemove: onRemoveCallback, onChange: onCh
                 </CoverPicker>
                 <Button
                     onClick={onRemove}
-                    className="text-muted-foreground text-xs"
+                    className="text-white hover:bg-white/20 bg-black/30 backdrop-blur-sm border-white/20 text-xs shadow-md"
                     variant="outline"
                     size="sm"
                 >

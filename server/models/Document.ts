@@ -12,6 +12,14 @@ export interface IDocument extends Document {
     isPublished: boolean;
     isPublic: boolean;
     allowedUsers: string[];
+    flashcards?: any;
+    mindmap?: any;
+    quiz?: any;
+    studyPlan?: any;
+    codingQuestions?: any;
+    lastReviewedAt?: Date;
+    nextReviewAt?: Date;
+    masteryLevel?: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -30,7 +38,12 @@ const DocumentSchema: Schema = new Schema({
     allowedUsers: [{ type: String }], // List of emails allowed to access
     flashcards: { type: Schema.Types.Mixed }, // Array of { front: string, back: string }
     mindmap: { type: Schema.Types.Mixed }, // { nodes: [], edges: [] } for ReactFlow
-    quiz: { type: Schema.Types.Mixed } // Array of { question: string, options: string[], answer: string }
+    quiz: { type: Schema.Types.Mixed }, // Array of { question: string, options: string[], answer: string }
+    studyPlan: { type: Schema.Types.Mixed }, // Structured JSON for study plan
+    codingQuestions: { type: Schema.Types.Mixed }, // Array of { title: string, problem: string, hint: string, solution: string }
+    lastReviewedAt: { type: Date },
+    nextReviewAt: { type: Date },
+    masteryLevel: { type: Number, default: 0 } // 0-5
 }, { timestamps: true });
 // Index for faster queries within an organization and hierarchy
 DocumentSchema.index({ orgId: 1, parentDocument: 1 });

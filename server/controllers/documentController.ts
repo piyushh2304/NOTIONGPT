@@ -36,19 +36,20 @@ export const getDocuments = async (req: AuthRequest, res: Response) => {
     try {
         const { orgId, parentDocument, isArchived } = req.query;
 
-        const filter: any = { userId: req.user.id };
-
-        if (orgId) filter.orgId = orgId;
+        // Fetch documents for the org if provided, otherwise for the user
+        const filter: any = orgId ? { orgId } : { userId: req.user.id };
 
         if (parentDocument === 'null' || parentDocument === undefined) {
             if (parentDocument === 'null') filter.parentDocument = null;
         } else {
             filter.parentDocument = parentDocument;
         }
+
         if (isArchived !== undefined) {
             filter.isArchived = isArchived === 'true';
         } else {
-            filter.isArchived = false;
+            // Robust check for legacy documents where isArchived is missing
+            filter.isArchived = { $ne: true };
         }
         const documents = await Document.find(filter).sort({ createdAt: -1 });
         res.json(documents);
@@ -75,7 +76,7 @@ export const getDocument = async (req: AuthRequest, res: Response) => {
 // @access  Private
 export const updateDocument = async (req: AuthRequest, res: Response) => {
     try {
-        const { title, content, coverImage, icon, isPublished, isArchived, isPublic, allowedUsers, flashcards, mindmap, quiz } = req.body;
+        const { title, content, coverImage, icon, isPublished, isArchived, isPublic, allowedUsers, flashcards, mindmap, quiz, studyPlan, codingQuestions, lastReviewedAt, nextReviewAt, masteryLevel } = req.body;
         const doc = await Document.findById(req.params.id);
         if (!doc) {
             return res.status(404).json({ message: 'Document not found' });
@@ -99,6 +100,11 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
         if (flashcards !== undefined) (doc as any).flashcards = flashcards;
         if (mindmap !== undefined) (doc as any).mindmap = mindmap;
         if (quiz !== undefined) (doc as any).quiz = quiz;
+        if (studyPlan !== undefined) (doc as any).studyPlan = studyPlan;
+        if (codingQuestions !== undefined) (doc as any).codingQuestions = codingQuestions;
+        if (lastReviewedAt !== undefined) (doc as any).lastReviewedAt = lastReviewedAt;
+        if (nextReviewAt !== undefined) (doc as any).nextReviewAt = nextReviewAt;
+        if (masteryLevel !== undefined) (doc as any).masteryLevel = masteryLevel;
         const updatedDoc = await doc.save();
 
         // Sync to Pinecone

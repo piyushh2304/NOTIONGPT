@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useAuth } from "../context/auth-context";
 import { Send, User, Bot, Sparkles, Copy, ThumbsUp, ThumbsDown, Paperclip, Mic, MoreHorizontal, HelpCircle, Gift, Share2, RefreshCw, FileText, PlusCircle, MessageSquare, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -24,7 +25,8 @@ export default function AiChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const orgId = "default-org"; 
+  const { user } = useAuth();
+  const orgId = user?.orgId || "default-org"; 
 
   const scrollViewportRef = useRef<HTMLDivElement>(null);
 

@@ -1,24 +1,13 @@
-import { MarkerType } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 
-// Pastel colors from reference: Pink, Blue, Green, Purple, Orange
-const PASTEL_COLORS = [
-    '#FFB4C2', // Pink
-    '#B4E4FF', // Blue
-    '#B4F8C8', // Green
-    '#D7B4F8', // Purple
-    '#FFD4B4', // Orange
-    '#F8F8B4', // Yellow
-];
-
-// Darker border/text colors corresponding to pastels
-const BORDER_COLORS = [
-    '#E57373', // Pink
-    '#64B5F6', // Blue
-    '#81C784', // Green
-    '#BA68C8', // Purple
-    '#FFB74D', // Orange
-    '#FFF176', // Yellow
+// Vibrant colors from reference
+const BRANCH_COLORS = [
+    { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' }, // Red
+    { bg: '#dcfce7', border: '#22c55e', text: '#166534' }, // Green
+    { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }, // Blue
+    { bg: '#fef9c3', border: '#facc15', text: '#854d0e' }, // Yellow
+    { bg: '#f3e8ff', border: '#a855f7', text: '#6b21a8' }, // Purple
+    { bg: '#ffedd5', border: '#f97316', text: '#9a3412' }, // Orange
 ];
 
 interface MindMapData {
@@ -36,111 +25,124 @@ export const generateMindMapData = (data: any): { nodes: Node[], edges: Edge[] }
         parsedData = typeof data === 'string' ? JSON.parse(data) : data;
     } catch (e) {
         console.error("Failed to parse mind map data", e);
-        // Fallback or re-throw
         parsedData = { label: "Error Parsing Data" };
     }
 
-    // --- Layout Configuration ---
     const rootX = 0;
     const rootY = 0;
+    const HORIZONTAL_SPACING = 500; // Increased
+    const VERTICAL_SPACING_UNIT = 120; // Base unit for spacing
+
+    // Helper to calculate total height of a branch
+    const getBranchHeight = (node: MindMapData): number => {
+        if (!node.children || node.children.length === 0) return 100;
+        const childrenHeight = node.children.reduce((acc, child) => acc + getBranchHeight(child), 0);
+        const gaps = (node.children.length - 1) * 40;
+        return Math.max(100, childrenHeight + gaps);
+    };
 
     // Create Root Node
     const rootId = 'root';
     nodes.push({
         id: rootId,
-        type: 'mindMapNode', // Custom node type we'll create
+        type: 'mindMapNode',
         position: { x: rootX, y: rootY },
         data: {
             label: parsedData.label,
-            color: '#BFA2E8', // Special purple for root (from image center)
-            borderColor: '#9575CD',
-            isRoot: true
+            isRoot: true,
+            depth: 0
         },
     });
 
     if (!parsedData.children) return { nodes, edges };
 
     const children = parsedData.children;
-    const count = children.length;
+    const midPoint = Math.ceil(children.length / 2);
 
-    // Radial Layout for Level 1
-    const radius = 300; // Distance from center
-    const angleStep = (2 * Math.PI) / count;
+    const leftChildren = children.slice(0, midPoint);
+    const rightChildren = children.slice(midPoint);
 
-    children.forEach((child, index) => {
-        const childId = `c-${index}`;
-        const angle = index * angleStep;
+    const layoutBranchSide = (branchNodes: MindMapData[], side: 'left' | 'right', startIdx: number) => {
+        const branchHeights = branchNodes.map(node => getBranchHeight(node));
+        const totalHeight = branchHeights.reduce((acc, h) => acc + h, 0) + (branchNodes.length - 1) * 100;
 
-        // Calculate position
-        const x = rootX + radius * Math.cos(angle);
-        const y = rootY + radius * Math.sin(angle);
+        let currentY = rootY - totalHeight / 2;
 
-        // Pick color cyclically
-        const colorIndex = index % PASTEL_COLORS.length;
-        const color = PASTEL_COLORS[colorIndex];
-        const borderColor = BORDER_COLORS[colorIndex];
+        branchNodes.forEach((child, index) => {
+            const actualIdx = startIdx + index;
+            const childId = `c-${actualIdx}`;
+            const branchHeight = branchHeights[index];
 
-        nodes.push({
-            id: childId,
-            type: 'mindMapNode',
-            position: { x, y },
-            data: {
-                label: child.label,
-                color: color,
-                borderColor: borderColor
-            },
-        });
+            const x = side === 'right' ? rootX + HORIZONTAL_SPACING : rootX - HORIZONTAL_SPACING;
+            const y = currentY + branchHeight / 2;
 
-        edges.push({
-            id: `e-${rootId}-${childId}`,
-            source: rootId,
-            target: childId,
-            type: 'default', // standard bezier
-            style: { stroke: '#555', strokeWidth: 2 },
-        });
+            const colorSet = BRANCH_COLORS[actualIdx % BRANCH_COLORS.length];
 
-        // Level 2 (Sub-children)
-        if (child.children && child.children.length > 0) {
-            const subCount = child.children.length;
-            // Fan out range (e.g., +/- 60 degrees around the parent's angle)
-            const fanAngle = Math.PI / 2; // 90 degrees fan
-            // Start angle for fan
-            const startAngle = angle - fanAngle / 2;
-            const subAngleStep = fanAngle / (subCount + 1); // +1 to avoid edges
-
-            const subRadius = 200;
-
-            child.children.forEach((subChild, subIndex) => {
-                const subId = `c-${index}-${subIndex}`;
-                // Calculate absolute angle
-                const currentAngle = startAngle + (subIndex + 1) * subAngleStep;
-
-                const subX = x + subRadius * Math.cos(currentAngle);
-                const subY = y + subRadius * Math.sin(currentAngle);
-
-                nodes.push({
-                    id: subId,
-                    type: 'mindMapNode',
-                    position: { x: subX, y: subY },
-                    data: {
-                        label: subChild.label,
-                        color: color, // Inherit color from parent branch
-                        borderColor: borderColor,
-                        isSubNode: true
-                    },
-                });
-
-                edges.push({
-                    id: `e-${childId}-${subId}`,
-                    source: childId,
-                    target: subId,
-                    type: 'smoothstep', // or bezier
-                    pathOptions: { borderRadius: 20 },
-                    style: { stroke: '#555', strokeWidth: 1.5 },
-                });
+            nodes.push({
+                id: childId,
+                type: 'mindMapNode',
+                position: { x, y },
+                data: {
+                    label: child.label,
+                    side,
+                    depth: 1,
+                    ...colorSet
+                },
             });
-        }
-    });
+
+            // Connect root to child
+            edges.push({
+                id: `e-${rootId}-${childId}`,
+                source: rootId,
+                sourceHandle: `source-${side}`, // Explicit handle ID
+                target: childId,
+                targetHandle: side === 'right' ? 'target-left' : 'target-right',
+                type: 'smoothstep',
+                style: { stroke: colorSet.border, strokeWidth: 4, opacity: 0.8 },
+                animated: true,
+            });
+
+            // Level 2 (Sub-children)
+            if (child.children && child.children.length > 0) {
+                const subCount = child.children.length;
+                const subTotalHeight = (subCount - 1) * VERTICAL_SPACING_UNIT;
+                const subStartY = y - subTotalHeight / 2;
+
+                child.children.forEach((subChild, subIndex) => {
+                    const subId = `${childId}-${subIndex}`;
+                    const subX = side === 'right' ? x + (HORIZONTAL_SPACING * 0.9) : x - (HORIZONTAL_SPACING * 0.9);
+                    const subY = subStartY + subIndex * VERTICAL_SPACING_UNIT;
+
+                    nodes.push({
+                        id: subId,
+                        type: 'mindMapNode',
+                        position: { x: subX, y: subY },
+                        data: {
+                            label: subChild.label,
+                            side,
+                            depth: 2,
+                            ...colorSet
+                        },
+                    });
+
+                    edges.push({
+                        id: `e-${childId}-${subId}`,
+                        source: childId,
+                        sourceHandle: `source-${side}`, // Explicit handle ID
+                        target: subId,
+                        targetHandle: side === 'right' ? 'target-left' : 'target-right',
+                        type: 'smoothstep',
+                        style: { stroke: colorSet.border, strokeWidth: 2, opacity: 0.6 },
+                    });
+                });
+            }
+
+            currentY += branchHeight + 100; // Increased spacing between branches
+        });
+    };
+
+    layoutBranchSide(rightChildren, 'right', midPoint);
+    layoutBranchSide(leftChildren, 'left', 0);
 
     return { nodes, edges };
 };

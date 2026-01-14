@@ -21,6 +21,11 @@ export type Document = {
     flashcards?: Array<{ front: string, back: string }>;
     mindmap?: { initialNodes: any[], initialEdges: any[] };
     quiz?: Array<{ question: string, options: string[], answer: string }>;
+    studyPlan?: any;
+    codingQuestions?: any[];
+    lastReviewedAt?: string;
+    nextReviewAt?: string;
+    masteryLevel?: number;
 };
 
 export const useDocuments = () => {
@@ -28,7 +33,10 @@ export const useDocuments = () => {
 
     const getDocuments = async (parentDocumentId: string | null = null) => {
         try {
-            const query = parentDocumentId ? `?parentDocument=${parentDocumentId}` : `?parentDocument=null`;
+            let query = parentDocumentId ? `?parentDocument=${parentDocumentId}` : `?parentDocument=null`;
+            if (user?.orgId) {
+                query += `&orgId=${user.orgId}`;
+            }
             const response = await fetch(`/api/documents${query}`, {
                headers: { 'Content-Type': 'application/json' },
                credentials: 'include' 
@@ -136,8 +144,9 @@ export const useDocuments = () => {
 
     const getAllDocuments = async () => {
         try {
-            // No parentDocument query param = fetch all
-            const response = await fetch(`/api/documents`, {
+            // No parentDocument query param = fetch all for the org
+            const query = user?.orgId ? `?orgId=${user.orgId}` : "";
+            const response = await fetch(`/api/documents${query}`, {
                headers: { 'Content-Type': 'application/json' },
                credentials: 'include' 
             });

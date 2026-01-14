@@ -139,8 +139,8 @@ export const CodeBlockComponent = ({
         </button>
       </div>
       
-      <pre className="!bg-transparent !p-0 !m-0 !font-mono font-medium">
-        <NodeViewContent as="code" className={`language-${defaultLanguage} !bg-transparent p-4 block`} />
+      <pre className="!bg-transparent !p-0 !m-0 !font-mono font-medium" spellCheck="false">
+        <NodeViewContent as="code" className={`language-${defaultLanguage} !bg-transparent p-4 block`} spellCheck="false" />
       </pre>
     </NodeViewWrapper>
   )

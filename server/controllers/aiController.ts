@@ -1,12 +1,57 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { pineconeIndex } from '../lib/vector-store';
 import { getEmbeddings } from '../lib/embeddings';
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 import { TavilySearch } from "@langchain/tavily";
 import Chat from '../models/Chat';
+import Document from '../models/Document';
+import { AnalogySearchService } from '../services/analogySearchService';
+import { WorkspaceSynthesisService } from '../services/workspaceSynthesisService';
+import { AuthRequest } from '../middleware/auth';
 
-export const chatWithDocs = async (req: Request, res: Response): Promise<void> => {
+import { IDocument } from '../models/Document';
+import { syncDocumentToPinecone } from '../lib/sync-to-pinecone';
+
+// Utility to attempt repairing truncated or malformed JSON
+function repairJson(json: string): any {
+    try {
+        return JSON.parse(json);
+    } catch (e) {
+        console.log("[repairJson] Parsing failed, attempting repair...");
+
+        let repaired = json.trim();
+
+        // Remove everything after the last valid structure if we can't find a closing bracket
+        // This is a simple heuristic: count braces
+        let openBraces = (repaired.match(/\{/g) || []).length;
+        let closeBraces = (repaired.match(/\}/g) || []).length;
+        let openBrackets = (repaired.match(/\[/g) || []).length;
+        let closeBrackets = (repaired.match(/\]/g) || []).length;
+
+        // Try appending missing closers
+        while (openBraces > closeBraces) {
+            repaired += "}";
+            closeBraces++;
+        }
+        while (openBrackets > closeBrackets) {
+            repaired += "]";
+            closeBrackets++;
+        }
+
+        try {
+            return JSON.parse(repaired);
+        } catch (innerError) {
+            // If simple repair fails, try to find the last complete object in a truncated array
+            // This is harder, so let's try a substring approach
+            console.warn("[repairJson] Simple repair failed, content might be too mangled.");
+            throw innerError;
+        }
+    }
+}
+
+export const chatWithDocs = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { message, orgId, chatId } = req.body;
 
@@ -15,8 +60,24 @@ export const chatWithDocs = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
-        // Ensure orgId is a string
-        const safeOrgId = String(orgId || "default-org");
+        // Ensure orgId is a valid ObjectId
+        let safeOrgId: string | mongoose.Types.ObjectId = orgId;
+
+        if (!orgId || orgId === "default-org" || !mongoose.Types.ObjectId.isValid(orgId)) {
+            console.log(`[aiController] Invalid orgId "${orgId}" received. Attempting to resolve via User...`);
+            const Organization = mongoose.model('Organization');
+            const userOrg = await Organization.findOne({ 'members.userId': req.user.id });
+            if (userOrg) {
+                safeOrgId = userOrg._id as mongoose.Types.ObjectId;
+                console.log(`[aiController] Resolved orgId to: ${safeOrgId}`);
+            } else {
+                console.warn(`[aiController] No organization found for user ${req.user.id}. Falling back to default.`);
+                // If really no org, we might have to fail or use a global one, 
+                // but for now let's hope one exists or we create one.
+                res.status(400).json({ error: "User is not associated with any organization." });
+                return;
+            }
+        }
 
         console.log(`Received chat message: "${message}" for org: ${safeOrgId}`);
 
@@ -45,8 +106,10 @@ export const chatWithDocs = async (req: Request, res: Response): Promise<void> =
         let pineconeMatches = 0;
 
 
-        // Relaxed Filter: Only filter if we have a valid specific orgId, otherwise search everything
-        const filter = (safeOrgId && safeOrgId !== "default-org") ? { orgId: safeOrgId } : undefined;
+        // Relaxed Filter: Only filter if we have a valid specific orgId
+        const filter = (safeOrgId && safeOrgId.toString() !== "default-org")
+            ? { orgId: safeOrgId.toString() }
+            : undefined;
 
         const pineconePromise = pineconeIndex.query({
             vector: queryEmbedding,
@@ -55,11 +118,18 @@ export const chatWithDocs = async (req: Request, res: Response): Promise<void> =
             includeMetadata: true
         });
 
-        // Trigger Web Search
-        const searchTool = new TavilySearch({
-            maxResults: 3,
+        // Trigger Web Search via Direct Fetch
+        const webSearchPromise = fetch("https://api.tavily.com/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                api_key: process.env.TAVILY_API_KEY,
+                query: message,
+                search_depth: "advanced",
+                max_results: 5,
+                include_images: true
+            })
         });
-        const webSearchPromise = searchTool.invoke(message);
 
         // Await both with robust error handling
         const [pineconeResult, webResult] = await Promise.allSettled([pineconePromise, webSearchPromise]);
@@ -82,27 +152,180 @@ export const chatWithDocs = async (req: Request, res: Response): Promise<void> =
             console.log("No relevant context found in Pinecone.");
         }
 
+        let foundImages: string[] = [];
         // Process Web Results
         if (webResult.status === 'fulfilled') {
             try {
-                const webResults = webResult.value;
-                // Tavily returns a JSON string or object, need to handle both safely
-                const results = typeof webResults === 'string' ? JSON.parse(webResults) : webResults;
-                if (Array.isArray(results)) {
-                    searchResultsText = results.map((r: any) => `Title: ${r.title}\nURL: ${r.url}\nContent: ${r.content}`).join("\n\n");
+                const response = webResult.value;
+                if (response.ok) {
+                    const data: any = await response.json();
+                    if (data.results && Array.isArray(data.results)) {
+                        searchResultsText = data.results.map((r: any) => `Title: ${r.title}\nURL: ${r.url}\nContent: ${r.content}`).join("\n\n");
+                        console.log(`Web search completed with ${data.results.length} results.`);
+                    }
+                    if (data.images && Array.isArray(data.images)) {
+                        foundImages = data.images.map((img: any) => typeof img === 'string' ? img : img.url).filter(Boolean);
+                        console.log(`Found ${foundImages.length} actual image URLs.`);
+                    }
                 } else {
-                    searchResultsText = String(webResults);
+                    console.error(`Web search API error: ${response.status}`);
                 }
-                console.log("Web search completed.");
             } catch (err) {
                 console.error("Error parsing web search results:", err);
             }
-        } else {
-            console.error("Web search failed:", webResult.reason);
         }
 
-        // 3. Handle Chat Persistence
-        console.log("Step 3: Persisting chat...");
+        // 3. Handle Intent Detection & Document Creation
+        const creationKeywords = ["create a document", "save this as a note", "make a document", "create a research doc", "create a detailed document"];
+        const wantsToCreate = creationKeywords.some(k => message.toLowerCase().includes(k));
+
+        if (wantsToCreate && req.user) {
+            console.log("Creation intent detected. Using dedicated document synthesis...");
+
+            // Set headers for status streaming
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.setHeader('Transfer-Encoding', 'chunked');
+            res.write("🔍 **Detecting Intent & Starting Research...**\n");
+
+            const chatModel = new ChatGoogleGenerativeAI({
+                apiKey: process.env.GOOGLE_API_KEY,
+                model: "gemini-2.5-flash",
+                maxOutputTokens: 4096,
+                temperature: 0.1,
+            });
+
+            res.write("🌐 **Gathering Information & Synthesizing Masterpiece...**\n");
+
+            const synthesisPrompt = `You are a Elite Document Architect. Create a MASTERPIECE document in TipTap JSON format.
+            
+            User Request: "${message}"
+            
+            Context:
+            ${searchResultsText || contextText || "Use your internal knowledge."}
+            
+            Verified Image URLs to use (PRIORITIZE THESE):
+            ${foundImages.length > 0 ? foundImages.join("\n") : "No specific image URLs discovered. Use high-quality public domain URLs from Wikimedia.org or similar platforms."}
+            
+            Requirements:
+            1. **Format**: Output a single JSON object with "title", "coverImage", and "content" (the TipTap JSON tree).
+            2. **Structure**: 
+               - Start with a H1 title in the content.
+               - Use multiple H2 and H3 sections for deep structure.
+            3. **Visuals (CRITICAL)**:
+               - Use actual URLs from the "Verified Image URLs" list above.
+               - If no verified URLs are suitable, use high-quality, working URLs from Wikimedia Commons (Wikimedia.org) or Pexels/Pixabay. 
+               - **DO NOT** use Unsplash Source URLs as they are deprecated.
+               - Embed at least 2 relevant images within the content using the "image" node type.
+               - Select a stunning "coverImage" for the document header.
+            
+            TipTap Content Schema Hint:
+            {
+              "type": "doc",
+              "content": [
+                { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "..." }] },
+                { "type": "image", "attrs": { "src": "https://source.unsplash.com/featured/?...", "alt": "..." } },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "..." }] },
+                { "type": "codeBlock", "attrs": { "language": "python" }, "content": [{ "type": "text", "text": "..." }] }
+              ]
+            }
+            
+            Output ONLY the raw JSON. No markdown wrappers.`;
+
+            try {
+                const docResponse = await chatModel.invoke([
+                    new SystemMessage(synthesisPrompt),
+                    new HumanMessage("Generate the full Masterpiece JSON now.")
+                ]);
+
+                const rawJson = typeof docResponse.content === 'string' ? docResponse.content : String(docResponse.content);
+                const cleanJson = rawJson.replace(/```json\n?|```/g, '').trim();
+
+                let parsed;
+                try {
+                    parsed = repairJson(cleanJson);
+                } catch (parseErr) {
+                    console.error("[aiController] Critical JSON Parse Failure:", parseErr);
+                    // Fallback to a very simple structure if repair fails
+                    parsed = {
+                        title: `Research: ${message.substring(0, 30)}`,
+                        content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: cleanJson }] }] }
+                    };
+                }
+
+                // Ensure Content is valid TipTap JSON
+                let content = parsed.content;
+
+                // 1. If it's just an array of blocks, wrap it
+                if (Array.isArray(content)) {
+                    content = { type: "doc", content };
+                }
+                // 2. If it's a single block object (missing doc root), wrap it
+                else if (content && typeof content === 'object' && content.type !== "doc") {
+                    content = { type: "doc", content: [content] };
+                }
+                // 3. Fallback: If it's empty, null, or still not a doc object, create a placeholder
+                if (!content || typeof content !== 'object' || content.type !== "doc") {
+                    console.warn("[aiController] AI returned invalid content structure. Using fallback.", content);
+                    content = {
+                        type: "doc",
+                        content: [
+                            {
+                                type: "paragraph",
+                                content: [{ type: "text", text: typeof content === 'string' ? content : "Content generation failed. Please try again or edit this manually." }]
+                            }
+                        ]
+                    };
+                }
+
+                // Final safety: Ensure every node in content array has a type
+                if (Array.isArray(content.content)) {
+                    content.content = content.content.filter((node: any) => node && typeof node === 'object' && node.type);
+                }
+
+                const newDoc = new Document({
+                    title: parsed.title || `Research: ${message.substring(0, 20)}`,
+                    content: content,
+                    coverImage: parsed.coverImage || `https://source.unsplash.com/featured/?${encodeURIComponent(message.substring(0, 20))}`,
+                    userId: req.user.id,
+                    orgId: safeOrgId.toString(),
+                });
+
+                await newDoc.save();
+
+                // Sync to Pinecone for searchability
+                try {
+                    await syncDocumentToPinecone(newDoc.id, newDoc.content, {
+                        title: newDoc.title,
+                        orgId: newDoc.orgId.toString()
+                    });
+                    console.log(`Document ${newDoc.id} synced to Pinecone.`);
+                } catch (syncErr) {
+                    console.error("Failed to sync AI document to Pinecone:", syncErr);
+                }
+
+                const confirmation = `\n✅ **MASTERPIECE CREATED!**\n\nI have generated **"${newDoc.title}"** with a professional structure, embedded visuals, and a custom cover image. \n\nYou can find it in your sidebar and start editing immediately!`;
+                res.write(confirmation);
+                res.end();
+
+                // Persistence for chat log
+                let chatHistory = await Chat.findById(chatId);
+                if (!chatHistory) {
+                    chatHistory = new Chat({ orgId: safeOrgId, title: newDoc.title, messages: [] });
+                }
+                chatHistory.messages.push({ role: 'user', content: message });
+                chatHistory.messages.push({ role: 'assistant', content: confirmation });
+                await chatHistory.save();
+                return;
+            } catch (err: any) {
+                console.error("Document synthesis failed:", err);
+                res.write(`\n❌ **Error during synthesis:** ${err.message}`);
+                res.end();
+                return;
+            }
+        }
+
+        // 4. Handle Regular Chat Persistence & Streaming
+        console.log("Step 4: Standard chat persistence...");
         let chat;
         try {
             if (chatId) {
@@ -122,8 +345,8 @@ export const chatWithDocs = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
-        // 4. Call LLM (Gemini) with Streaming
-        console.log("Step 4: Calling Gemini (Streaming)...");
+        // 5. Normal Streaming Response
+        console.log("Step 5: Calling Gemini (Normal Streaming)...");
 
         try {
             const chatModel = new ChatGoogleGenerativeAI({
@@ -135,27 +358,18 @@ export const chatWithDocs = async (req: Request, res: Response): Promise<void> =
             const systemPrompt = `You are an intelligent assistant. 
             Answer the user's question using the provided context.
             
-            The context includes:
-            1.  **Document Data**: Content from the user's private documents.
-            2.  **Web Search Findings**: Real-time information from the internet.
+            Synthesize information efficiently from documents and web results.
+            Mention if information comes from the web.
 
-            Synthesize this information to provide a comprehensive answer. 
-            - If the answer is in the documents, prioritize that.
-            - Use web search to supplement or explain concepts found in the documents.
-            - If you use information from the web, mention it.
-
-            **Document Data:**
-            ${contextText || "No relevant documents found."}
-
-            **Web Search Findings:**
-            ${searchResultsText || "No web search results found."}
+            **Context:**
+            ${contextText || "No relevant documents."}
+            ${searchResultsText || "No web results."}
             `;
 
             const recentHistory = chat.messages.slice(-6, -1).map((m: any) =>
                 m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content)
             );
 
-            // Set headers for streaming
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             res.setHeader('Transfer-Encoding', 'chunked');
 
@@ -166,7 +380,6 @@ export const chatWithDocs = async (req: Request, res: Response): Promise<void> =
             ]);
 
             let fullAiResponse = "";
-
             for await (const chunk of stream) {
                 if (chunk.content) {
                     const text = typeof chunk.content === 'string' ? chunk.content : "";
@@ -176,15 +389,8 @@ export const chatWithDocs = async (req: Request, res: Response): Promise<void> =
             }
 
             res.end();
-
-            // Save the full response to DB after streaming is complete
-            try {
-                chat.messages.push({ role: 'assistant', content: fullAiResponse });
-                await chat.save();
-                console.log("Chat saved successfully.");
-            } catch (saveError) {
-                console.error("Failed to save chat after streaming:", saveError);
-            }
+            chat.messages.push({ role: 'assistant', content: fullAiResponse });
+            await chat.save();
 
         } catch (e: any) {
             console.error("Gemini streaming failed:", e);
@@ -331,19 +537,51 @@ export const generateLearningContent = async (req: Request, res: Response): Prom
                     Content:\n${documentContent}`;
                     break;
                 case 'plan':
-                    userPrompt = `Create a 30-day study plan to master the material in the following content.
-                    - Break it down into weeks and days.
-                    - Assign specific topics or review activities for each day.
-                    - If the content is short, create a plan appropriate for the scope (e.g., 1-week plan).
+                    systemPrompt = `You are an expert study planner.
+                    IMPORTANT: Output valid, strict JSON only. No markdown.
+                    Output format: A JSON Object with the following structure:
+                    {
+                      "title": "Mastery Plan for [Topic]",
+                      "weeks": [
+                        {
+                          "week": 1,
+                          "title": "Foundation and Basics",
+                          "days": [
+                            { 
+                              "day": 1, 
+                              "topic": "Introduction to X", 
+                              "activities": ["Read chapter 1", "Try exercise A"],
+                              "duration": "1-2 hours"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                    - Plan for 1-4 weeks depending on content complexity.
+                    - Each day should have 1-3 concise activities.
+                    `;
+                    userPrompt = `Create a structured study plan to master the material in the following content.
                     
                     Content:\n${documentContent}`;
                     break;
                 case 'coding':
-                    userPrompt = `Generate 5 coding interview questions (with solutions) related to the technical topics in the following content.
-                    - If no technical topics are found, state that and generate general comprehension questions.
-                    - Provide the question, a hint, and then the solution code block.
-                    
-                    Content:\n${documentContent}`;
+                    systemPrompt = `You are a technical interview coach.
+                    IMPORTANT: Output valid, strict JSON ONLY. No markdown wrapper. No conversational preamble or post-text.
+                    Output format: JSON Array of objects:
+                    [
+                      {
+                        "title": "Clean Title",
+                        "problem": "Detailed problem description. If you use quotes, escape them with \\\".",
+                        "hint": "Subtle hint.",
+                        "solution": "Full solution code. IMPORTANT: Use \\n for newlines and escape all double quotes with \\. Do NOT use actual backticks (\`) inside the JSON string as it can break some parsers, use standard code formatting or escape them.",
+                        "difficulty": "Easy/Medium/Hard"
+                      }
+                    ]
+                    - Generate 3-5 high-quality coding questions.
+                    - Ensure the JSON is perfectly valid and parseable by standard JSON.parse().
+                    - DO NOT include ANY markdown code blocks (like \`\`\`json).
+                    `;
+                    userPrompt = `Generate coding or logic questions based on the following content.\n\nContent:\n${documentContent}`;
                     break;
                 default:
                     userPrompt = `Summarize and structure the following content for easy learning.\n\nContent:\n${documentContent}`;
@@ -355,11 +593,30 @@ export const generateLearningContent = async (req: Request, res: Response): Prom
             new HumanMessage(userPrompt)
         ]);
 
-        const generatedText = response.content;
-
-        // Simple cleanup to ensure it doesn't wrap in markdown code blocks if the model adds them unnecessarily
+        let generatedText = response.content;
         let cleanText = typeof generatedText === 'string' ? generatedText : String(generatedText);
-        cleanText = cleanText.replace(/```(json|markdown)?\n?/g, '').replace(/```$/g, '');
+
+        // More aggressive cleanup for JSON-specific types
+        if (['quiz', 'flashcards', 'mindmap', 'plan', 'coding'].includes(type as string)) {
+            // Remove everything before the first [ or { and everything after the last ] or }
+            const firstBracket = cleanText.indexOf('[');
+            const firstBrace = cleanText.indexOf('{');
+            const start = (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) ? firstBracket : firstBrace;
+
+            const lastBracket = cleanText.lastIndexOf(']');
+            const lastBrace = cleanText.lastIndexOf('}');
+            const end = Math.max(lastBracket, lastBrace);
+
+            if (start !== -1 && end !== -1 && end > start) {
+                cleanText = cleanText.substring(start, end + 1);
+            }
+
+            // Further strip any residual markdown wrappers that might have survived substring
+            cleanText = cleanText.replace(/```(json|markdown)?\n?/g, '').replace(/```$/g, '');
+        } else {
+            // For general markdown content
+            cleanText = cleanText.replace(/```(json|markdown)?\n?/g, '').replace(/```$/g, '');
+        }
 
         res.json({ content: cleanText });
 
@@ -368,3 +625,72 @@ export const generateLearningContent = async (req: Request, res: Response): Prom
         res.status(500).json({ error: `Failed to generate content: ${error.message}` });
     }
 }
+
+export const analogySearch = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { query, orgId } = req.body;
+
+        if (!query) {
+            res.status(400).json({ error: "Search query is required" });
+            return;
+        }
+
+        // Resolve orgId safely
+        let safeOrgId: string | mongoose.Types.ObjectId = orgId;
+        if (!orgId || orgId === "default-org" || !mongoose.Types.ObjectId.isValid(orgId)) {
+            const Organization = mongoose.model('Organization');
+            const userOrg = await Organization.findOne({ 'members.userId': (req as any).user?.id });
+            if (userOrg) safeOrgId = userOrg._id as mongoose.Types.ObjectId;
+        }
+
+        const analogyService = new AnalogySearchService();
+
+        console.log(`[Analogy Search] Query: "${query}" for org: ${safeOrgId}`);
+        const results = await analogyService.search(query, safeOrgId.toString());
+
+        res.json(results);
+    } catch (error: any) {
+        console.error("Analogy search failed:", error);
+        res.status(500).json({ error: `Search failed: ${error.message}` });
+    }
+};
+
+export const detectContradictions = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { orgId } = req.body;
+
+        // Resolve orgId safely
+        let safeOrgId: string | mongoose.Types.ObjectId = orgId;
+        if (!orgId || orgId === "default-org" || !mongoose.Types.ObjectId.isValid(orgId)) {
+            const Organization = mongoose.model('Organization');
+            const userOrg = await Organization.findOne({ 'members.userId': (req as any).user?.id });
+            if (userOrg) safeOrgId = userOrg._id as mongoose.Types.ObjectId;
+        }
+
+        const synthesisService = new WorkspaceSynthesisService();
+        const results = await synthesisService.detectContradictions(safeOrgId.toString());
+        res.json(results);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const workspaceSummary = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { orgId, query } = req.body;
+
+        // Resolve orgId safely
+        let safeOrgId: string | mongoose.Types.ObjectId = orgId;
+        if (!orgId || orgId === "default-org" || !mongoose.Types.ObjectId.isValid(orgId)) {
+            const Organization = mongoose.model('Organization');
+            const userOrg = await Organization.findOne({ 'members.userId': (req as any).user?.id });
+            if (userOrg) safeOrgId = userOrg._id as mongoose.Types.ObjectId;
+        }
+
+        const synthesisService = new WorkspaceSynthesisService();
+        const result = await synthesisService.generateUnifiedSummary(safeOrgId.toString(), query);
+        res.json(result);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};

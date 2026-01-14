@@ -1,9 +1,13 @@
 import express from 'express';
-import { chatWithDocs, getMyChats, getChatHistory, deleteChat, generateLearningContent } from '../controllers/aiController';
+import { chatWithDocs, getMyChats, getChatHistory, deleteChat, generateLearningContent, analogySearch, detectContradictions, workspaceSummary } from '../controllers/aiController';
+import { protect } from '../middleware/auth';
 
 const router = express.Router();
 
-router.post('/chat', chatWithDocs);
+router.post('/chat', protect, chatWithDocs);
+router.post('/analogy-search', analogySearch);
+router.post('/detect-contradictions', detectContradictions);
+router.post('/workspace-summary', workspaceSummary);
 router.post('/generate-learning', generateLearningContent);
 router.get('/chats', getMyChats);
 router.get('/chats/:id', getChatHistory);

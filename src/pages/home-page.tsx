@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LearningPaths } from "@/components/dashboard/learning-paths";
 
 const HomePage = () => {
     const { getAllDocuments } = useDocuments();
@@ -82,39 +83,10 @@ const HomePage = () => {
                     </ScrollArea>
                 </section>
 
-                {/* Learn Section */}
-                 <section className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium pl-1">
-                        <CheckSquare className="w-4 h-4" />
-                        <span>Learn</span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[
-                            { title: "The ultimate guide to Notion templates", readTime: "5m read", img: "/placeholder" },
-                            { title: "Customize & style your content", readTime: "9m read", img: "/placeholder" },
-                            { title: "Getting started with projects and tasks", readTime: "8m read", img: "/placeholder" },
-                            { title: "Using Notion AI to expand your impact", readTime: "3m read", img: "/placeholder" }
-                        ].map((item, i) => (
-                            <div key={i} className="group rounded-xl border bg-card overflow-hidden hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer">
-                                <div className="aspect-video bg-neutral-200 dark:bg-neutral-800 relative">
-                                    {/* Placeholder for image */}
-                                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground opacity-20">
-                                        Image
-                                    </div>
-                                </div>
-                                <div className="p-3 space-y-1">
-                                    <h3 className="font-medium text-sm line-clamp-2 leading-tight">{item.title}</h3>
-                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                        <ExternalLink className="w-3 h-3" />
-                                        {item.readTime}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
+                {/* AI Learning Paths */}
+                <LearningPaths />
                 
-                 {/* Upcoming Events Placeholder */}
+                {/* Recently Visited */}
                  <section className="space-y-4">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium pl-1">
                         <Calendar className="w-4 h-4" />

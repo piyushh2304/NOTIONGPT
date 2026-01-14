@@ -11,9 +11,14 @@ interface ToolbarProps {
   onFlashcardsGenerated?: (cards: any[]) => void;
   onMindMapGenerated?: (data: any) => void;
   onQuizGenerated?: (data: any[]) => void;
+  onStudyPlanGenerated?: (data: any) => void;
+  onCodingQuestionsGenerated?: (data: any[]) => void;
   onViewFlashcards?: () => void;
   onViewMindMap?: () => void;
   onViewQuiz?: () => void;
+  onViewStudyPlan?: () => void;
+  onViewCodingQuestions?: () => void;
+  onResearch?: () => void;
 }
 
 export const Toolbar = ({ 
@@ -23,9 +28,14 @@ export const Toolbar = ({
     onFlashcardsGenerated, 
     onMindMapGenerated,
     onQuizGenerated,
+    onStudyPlanGenerated,
+    onCodingQuestionsGenerated,
     onViewFlashcards,
     onViewMindMap,
-    onViewQuiz
+    onViewQuiz,
+    onViewStudyPlan,
+    onViewCodingQuestions,
+    onResearch
 }: ToolbarProps) => {
   const { updateDocument } = useDocuments();
 
@@ -87,6 +97,8 @@ export const Toolbar = ({
   const hasFlashcards = initialData.flashcards && initialData.flashcards.length > 0;
   const hasMindMap = initialData.mindmap && initialData.mindmap.initialNodes && initialData.mindmap.initialNodes.length > 0;
   const hasQuiz = initialData.quiz && initialData.quiz.length > 0;
+  const hasStudyPlan = initialData.studyPlan && initialData.studyPlan.weeks && initialData.studyPlan.weeks.length > 0;
+  const hasCodingQuestions = initialData.codingQuestions && initialData.codingQuestions.length > 0;
 
   return (
     <div className="opacity-0 group-hover:opacity-100 flex items-center gap-x-1 py-4">
@@ -113,7 +125,6 @@ export const Toolbar = ({
             Add cover
         </Button>
       )}
-
       {/* Doc2Learn Button (AI Tools) */}
       {!preview && (
           <Doc2LearnDialog 
@@ -122,12 +133,18 @@ export const Toolbar = ({
             onFlashcardsGenerated={onFlashcardsGenerated}
             onMindMapGenerated={onMindMapGenerated}
             onQuizGenerated={onQuizGenerated}
+            onStudyPlanGenerated={onStudyPlanGenerated}
+            onCodingQuestionsGenerated={onCodingQuestionsGenerated}
             hasFlashcards={hasFlashcards}
             hasMindMap={hasMindMap}
             hasQuiz={hasQuiz}
+            hasStudyPlan={hasStudyPlan}
+            hasCodingQuestions={hasCodingQuestions}
             onViewFlashcards={onViewFlashcards}
             onViewMindMap={onViewMindMap}
             onViewQuiz={onViewQuiz}
+            onViewStudyPlan={onViewStudyPlan}
+            onViewCodingQuestions={onViewCodingQuestions}
           >
               <Button
                   className="text-muted-foreground text-xs"
@@ -138,6 +155,18 @@ export const Toolbar = ({
                   AI Tools
               </Button>
           </Doc2LearnDialog>
+      )}
+
+      {!preview && (
+          <Button
+              className="text-muted-foreground text-xs"
+              variant="ghost"
+              size="sm"
+              onClick={onResearch}
+          >
+              <Sparkles className="h-4 w-4 mr-2 text-indigo-500" />
+              Research
+          </Button>
       )}
     </div>
   );

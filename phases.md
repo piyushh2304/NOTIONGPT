@@ -1,81 +1,28 @@
-# Project Phases: NotionGPT
+# NotionGPT Future Roadmap: Beyond Notion
 
-This roadmap outlines the development phases for building a Notion clone with Intercom and ChatGPT features.
+This document outlines the advanced developmental phases to transform NotionGPT into a proactive, AI-first intelligence engine that surpasses modern productivity tools.
 
-## Phase 1: Foundation & UI Shell 🏗️
-**Goal:** Initialize repo, UI framework, and core layout.
-**Tech:** React 19 (Vite or CRA), Tailwind, shadcn/ui.
-- [x] Landing page
-- [x] Dashboard layout shell (sidebar + topbar)
-- [x] Client-side routes defined (no backend calls yet) using React Router
-- [x] **Deliverable:** Functional UI shell and landing page.
+## Phase 1: The "Semantic Radar" (Proactive Intelligence)
+*   **Feature**: Real-time passive cross-linking.
+*   **Description**: As you write, a sidebar analyzes your current paragraph and proactively suggests related notes from your Knowledge Graph, even if they don't share keywords.
+*   **Tech**: Local vector embeddings (transformers.js) + similarity thresholding.
 
-## Phase 2: Database & Authentication 🔐
-**Goal:** User & organization management with secure auth.
-**Tech:** MongoDB (Atlas/Local), Mongoose ODM, JWT auth -> OAuth later.
-- [x] Signup, Login, Logout
-- [x] Organization creation
-- [x] JWT session handling
-- [x] Protected routes middleware in Express
-- [x] **Deliverable:** Secure auth and org management.
+## Phase 2: Autonomous Research Agents
+*   **Feature**: Multi-source web synthesis.
+*   **Description**: A "Research" button that uses Tavily/Search APIs to browse the web, verify facts, and automatically generate a structured document with citations in your workspace.
+*   **Tech**: Tavily API + LangChain Agents + Anthropic/Gemini.
 
-## Phase 2.1: Frontend Authentication (UI Integration)
-**Goal:** Create beautiful Sign In and Sign Up pages.
-**Tech:** React, Framer Motion, Lucide React, Custom UI.
-- [x] Login Page with animation (DotMap backend).
-- [x] Signup Page (adapted from Login UI).
-- [x] Auth Context for frontend state management.
-- [x] Integration with backend API.
-- [x] **Deliverable:** Complete Frontend Auth Flow.
+## Phase 3: AI-Driven Learning Paths
+*   **Feature**: Topographical Graph Analysis.
+*   **Description**: The AI identifies "Knowledge Gaps" (disconnected clusters in your graph) and generates a personalized study plan or synthesis note to connect those separate disciplines.
+*   **Tech**: NetworkX (Graph algorithms) + LLM analysis of graph structure.
 
+## Phase 4: Semantic Analogy Search
+*   **Feature**: Conceptual Retrieval.
+*   **Description**: Search for concepts using metaphors (e.g., "Find me a coding pattern that works like a factory assembly line").
+*   **Tech**: High-dimensional vector search + LLM query re-writing for "concept extraction."
 
-## Phase 3: Knowledge Base (The "Notion" Part) �
-**Goal:** Document creation & management.
-**Tech:** Tiptap (advanced extensions), Mongoose CRUD, Recursive tree structure.
-- [ ] Create, Edit, Delete, View documents
-- [ ] Tree structure stored via parentId reference
-- [ ] API endpoints for docs + org scope validation
-- [ ] **Deliverable:** Basic document management.
-
-## Phase 3.1: Notion-like Editor & Dashboard Experience 🎨
-**Goal:** Make the writing experience feel like Notion.
-**Tech:** Tiptap extensions, Optimistic UI, Mongo recursive aggregation.
-- [ ] Notion-like editor page (always main view)
-- [ ] Tree sidebar navigation (collapsible, infinite depth)
-- [ ] Slash commands menu (`/`)
-- [ ] Block-based UX (Drag handles, draggable blocks)
-- [ ] Page properties (Cover images + Icons)
-- [ ] Autosave (Debounced)
-- [ ] **Deliverable:** Comprehensive Notion editor experience.
-
-## Phase 4: Support & Tickets (The "Intercom" Part) 🎫
-**Goal:** Manual support system.
-**Tech:** MongoDB Ticket Schema, Express REST API, React dashboard.
-- [ ] Create ticket (user side)
-- [ ] Reply to ticket (agent side)
-- [ ] Agent dashboard UI
-- [ ] **Deliverable:** Functional support ticket system.
-
-## Phase 5: AI Intelligence (The "ChatGPT" Part) 🤖
-**Goal:** Build RAG + AI support chat.
-**Tech:** LangChain.js, Pinecone/pgvector, OpenAI/Gemini API.
-- [ ] AI chat widget (company docs context)
-- [ ] Vector embeddings pipeline
-- [ ] Automated AI replies/suggestions
-- [ ] **Deliverable:** AI-powered support and chat.
-
-## Phase 6: Microservices & Refinement 🚀
-**Goal:** Modularize backend when scaling is needed.
-**Tech:** Optional NestJS/Express services, GraphQL Gateway, Redis.
-- [ ] Split backend into Docs, Auth, Support, AI services (if needed)
-- [ ] API Structure alignment
-- [ ] **Deliverable:** Scalable architecture.
-
-## API Backend Structure Reference
-| Feature | Endpoint |
-| :--- | :--- |
-| Auth | `/api/auth/signup`, `/api/auth/login` |
-| Org | `/api/org/create`, `/api/org/:orgId` |
-| Docs | `/api/docs/create`, `/api/docs/:id`, `/api/docs/tree/:orgId` |
-| Support | `/api/tickets/create`, `/api/tickets/:id/reply` |
-| AI | `/api/ai/chat`, `/api/ai/embed-docs` |
+## Phase 5: Multi-Document Workspace Synthesis
+*   **Feature**: Global Context Reasoning.
+*   **Description**: Chat with your *entire* workspace or specific folders. Ask the AI to find contradictions across project plans or summarize a unified timeline from 10 different meeting notes.
+*   **Tech**: RAG (Retrieval Augmented Generation) with recursive summarization.

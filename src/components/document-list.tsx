@@ -56,8 +56,16 @@ export const DocumentList = ({
             setDocuments(docs);
         };
         fetchDocs();
+
+        const handleUpdate = (event: any) => {
+            const { id, title } = event.detail;
+            setDocuments(prev => prev?.map(doc => doc._id === id ? { ...doc, title } : doc) ?? null);
+        };
+
+        window.addEventListener('document-updated', handleUpdate);
+        return () => window.removeEventListener('document-updated', handleUpdate);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parentDocumentId]);
+    }, [parentDocumentId, getDocuments]);
 
     const onCreate = async (e: React.MouseEvent, parentId: string | null) => {
         e.stopPropagation();
