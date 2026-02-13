@@ -643,6 +643,11 @@ export const analogySearch = async (req: Request, res: Response): Promise<void> 
             if (userOrg) safeOrgId = userOrg._id as mongoose.Types.ObjectId;
         }
 
+        if (!safeOrgId || safeOrgId === "default-org" || !mongoose.Types.ObjectId.isValid(safeOrgId as any)) {
+            res.status(400).json({ error: "Organization ID is required and could not be determined" });
+            return;
+        }
+
         const analogyService = new AnalogySearchService();
 
         console.log(`[Analogy Search] Query: "${query}" for org: ${safeOrgId}`);
@@ -667,6 +672,11 @@ export const detectContradictions = async (req: Request, res: Response): Promise
             if (userOrg) safeOrgId = userOrg._id as mongoose.Types.ObjectId;
         }
 
+        if (!safeOrgId || safeOrgId === "default-org" || !mongoose.Types.ObjectId.isValid(safeOrgId as any)) {
+            res.status(400).json({ error: "Organization ID is required and could not be determined" });
+            return;
+        }
+
         const synthesisService = new WorkspaceSynthesisService();
         const results = await synthesisService.detectContradictions(safeOrgId.toString());
         res.json(results);
@@ -687,10 +697,132 @@ export const workspaceSummary = async (req: Request, res: Response): Promise<voi
             if (userOrg) safeOrgId = userOrg._id as mongoose.Types.ObjectId;
         }
 
+        if (!safeOrgId || safeOrgId === "default-org" || !mongoose.Types.ObjectId.isValid(safeOrgId as any)) {
+            res.status(400).json({ error: "Organization ID is required and could not be determined" });
+            return;
+        }
+
         const synthesisService = new WorkspaceSynthesisService();
         const result = await synthesisService.generateUnifiedSummary(safeOrgId.toString(), query);
         res.json(result);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+export const editContent = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { text, instruction, orgId } = req.body;
+
+        if (!text || !instruction) {
+            res.status(400).json({ error: "Text and instruction are required" });
+            return;
+        }
+
+        if (!process.env.GOOGLE_API_KEY) {
+            res.status(500).json({ error: "Server configuration error: Missing Google API Key" });
+            return;
+        }
+
+        const chatModel = new ChatGoogleGenerativeAI({
+            apiKey: process.env.GOOGLE_API_KEY,
+            model: "gemini-2.5-flash",
+            maxOutputTokens: 2048,
+        });
+
+        const systemPrompt = `You are an expert AI editor.
+        Your task is to modify the provided text based STRICTLY on the user's instruction.
+        
+        Rules:
+        - Output ONLY the modified text.
+        - Do not add quotes, markdown wrappers, or conversational filler.
+        - Preserve the original meaning unless asked to change it.
+        `;
+
+        const response = await chatModel.invoke([
+            new SystemMessage(systemPrompt),
+            new HumanMessage(`Text: "${text}"\n\nInstruction: ${instruction}\n\nModified Text:`)
+        ]);
+
+        const modifiedText = typeof response.content === 'string' ? response.content : String(response.content);
+        res.json({ content: modifiedText.trim() });
+
+    } catch (error: any) {
+        console.error("Error in editContent:", error);
+        res.status(500).json({ error: `Failed to edit content: ${error.message}` });
+    }
+};
+
+export const autocompleteContent = async (req: Request, res: Response): Promise<void> => {
+    // Deprecated in favor of generateContent, keeping for backward compatibility if needed
+    // or we can redirect logic.
+    return generateContent(req, res);
+};
+
+export const generateContent = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { context, instruction, orgId } = req.body;
+
+        if (!process.env.GOOGLE_API_KEY) {
+            res.status(500).json({ error: "Server configuration error: Missing Google API Key" });
+            return;
+        }
+
+        const chatModel = new ChatGoogleGenerativeAI({
+            apiKey: process.env.GOOGLE_API_KEY,
+            model: "gemini-2.5-flash",
+            maxOutputTokens: 2048,
+            streaming: true,
+        });
+
+        let promptMessages = [];
+
+        if (instruction) {
+            // "Ask AI" or specific command mode
+            const systemPrompt = `You are an expert AI writing assistant.
+             Task: ${instruction}
+             
+             Context from document:
+             "${context || ''}"
+             
+             Rules:
+             - Output ONLY the result.
+             - Do not use markdown wrappers unless requested.
+             `;
+            promptMessages = [new SystemMessage(systemPrompt), new HumanMessage("Go.")];
+        } else {
+            // "Continue writing" mode
+            const systemPrompt = `You are a helpful AI co-writer.
+            Continue the text naturally from the provided context.
+            
+            Rules:
+            - Maintain the tone and style.
+            - Do not repeat the last sentence.
+            - Keep it to 1-2 paragraphs max unless asked otherwise.
+            `;
+            promptMessages = [new SystemMessage(systemPrompt), new HumanMessage(`Context: "${context}"\n\nContinue:`)];
+        }
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Transfer-Encoding', 'chunked');
+
+        const stream = await chatModel.stream(promptMessages);
+
+        for await (const chunk of stream) {
+            if (chunk.content) {
+                const text = typeof chunk.content === 'string' ? chunk.content : String(chunk.content);
+                res.write(text);
+            }
+        }
+
+        res.end();
+
+    } catch (error: any) {
+        console.error("Error in generateContent:", error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: `AI generation failed: ${error.message}` });
+        } else {
+            res.end();
+        }
     }
 };

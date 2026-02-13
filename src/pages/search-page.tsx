@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/context/auth-context";
 import { Search, Sparkles, Loader2, ArrowRight, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -7,45 +8,77 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 
+import { useSearchParams } from "react-router-dom";
+
 export default function SearchPage() {
-    const [query, setQuery] = useState("");
+    const [searchParams] = useSearchParams();
+    const [query, setQuery] = useState(searchParams.get("q") || "");
+    const debouncedQuery = useDebounce(query, 500);
     const [isAnalogyMode, setIsAnalogyMode] = useState(true);
+    
+    // Sync query with URL params if they change (e.g. from Navbar search)
+    useEffect(() => {
+        const q = searchParams.get("q");
+        if (q && q !== query) {
+            setQuery(q);
+        }
+    }, [searchParams]);
     const [isLoading, setIsLoading] = useState(false);
     const [results, setResults] = useState<any[]>([]);
     const [extractedConcept, setExtractedConcept] = useState("");
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    const handleSearch = async (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        if (!query.trim()) return;
+    useEffect(() => {
+        const performSearch = async () => {
+             console.log("[SearchPage] performSearch triggered. Query:", debouncedQuery);
+             if (!debouncedQuery.trim()) {
+                 setResults([]);
+                 setExtractedConcept("");
+                 return;
+             }
 
-        setIsLoading(true);
-        try {
-            const endpoint = isAnalogyMode ? "/api/ai/analogy-search" : "/api/documents/search";
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    query,
-                    orgId: user?.orgId || "default-org"
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (isAnalogyMode) {
-                setResults(data.results || []);
-                setExtractedConcept(data.extractedConcept);
-            } else {
-                setResults(Array.isArray(data) ? data : []);
-                setExtractedConcept("");
-            }
-        } catch (error) {
-            console.error("Search failed", error);
-        } finally {
-            setIsLoading(false);
-        }
+             setIsLoading(true);
+             try {
+                const endpoint = isAnalogyMode ? "/api/ai/analogy-search" : "/api/documents/search";
+                console.log("[SearchPage] Fetching from:", endpoint);
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        query: debouncedQuery,
+                        orgId: user?.orgId || "default-org"
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error("[SearchPage] API Error:", response.status, response.statusText);
+                    throw new Error("API request failed");
+                }
+
+                const data = await response.json();
+                console.log("[SearchPage] Data received:", data);
+                
+                if (isAnalogyMode) {
+                    setResults(data.results || []);
+                    setExtractedConcept(data.extractedConcept);
+                } else {
+                    setResults(Array.isArray(data) ? data : []);
+                    setExtractedConcept("");
+                }
+             } catch (error) {
+                 console.error("[SearchPage] Search failed", error);
+             } finally {
+                 setIsLoading(false);
+             }
+        };
+
+        performSearch();
+    }, [debouncedQuery, isAnalogyMode, user?.orgId]);
+
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        // Search is handled by useEffect
     };
 
     return (

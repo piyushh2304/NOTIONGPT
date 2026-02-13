@@ -7,7 +7,6 @@ import {
   Home,
   Sparkles,
   BookOpen,
-  Share2,
   Layers
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -46,9 +45,9 @@ export function Sidebar({ className }: { className?: string }) {
     { label: "Search", icon: Search, href: "/dashboard/search" },
     { label: "AI Chat", icon: Sparkles, href: "/dashboard/ai-chat" },
     { label: "Mastery", icon: BookOpen, href: "/dashboard/mastery" },
-    { label: "Knowledge Graph", icon: Share2, href: "/dashboard/graph" },
     { label: "Synthesis", icon: Layers, href: "/dashboard/synthesis" },
     { label: "Settings", icon: Settings, href: "/dashboard/settings" },
+    { label: "Add a page", icon: PlusCircle, onClick: true },
   ];
 
   const sectionItems = [
@@ -93,33 +92,47 @@ export function Sidebar({ className }: { className?: string }) {
         <div className="flex flex-col gap-y-0.5 px-3">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.label}
-                to={item.href}
-                className={cn(
-                    "group relative min-h-[32px] text-sm py-1.5 px-3 w-full flex items-center text-muted-foreground font-medium rounded-xl transition-all hover:text-foreground",
-                    isActive && "text-foreground bg-primary/5",
+              return item.onClick ? (
+                <button
+                  key={item.label}
+                  onClick={handleCreate}
+                  className={cn(
+                    "group relative min-h-[32px] text-sm py-1.5 px-3 w-full flex items-center text-muted-foreground font-medium rounded-xl transition-all hover:text-foreground hover:bg-primary/5",
                     collapsed && "justify-center px-1"
-                )}
-              >
-                {isActive && (
-                  <motion.div 
-                    layoutId="active-pill"
-                    className="absolute left-1 w-1 h-4 bg-indigo-500 rounded-full"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
-                )}
-                <item.icon className={cn(
-                  "h-4 w-4 mr-2.5 shrink-0 transition-transform group-hover:scale-110",
-                  isActive && "text-indigo-500"
-                )} />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-                {item.label === "AI Chat" && !collapsed && (
-                  <span className="ml-auto text-[10px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tight shadow-sm shadow-indigo-500/20">AI</span>
-                )}
-              </Link>
-            );
+                  )}
+                >
+                  <item.icon className={cn(
+                    "h-4 w-4 mr-2.5 shrink-0 transition-transform group-hover:scale-110 text-indigo-500",
+                  )} />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+                </button>
+              ) : (
+                <Link
+                  key={item.label}
+                  to={item.href!}
+                  className={cn(
+                      "group relative min-h-[32px] text-sm py-1.5 px-3 w-full flex items-center text-muted-foreground font-medium rounded-xl transition-all hover:text-foreground",
+                      isActive && "text-foreground bg-primary/5",
+                      collapsed && "justify-center px-1"
+                  )}
+                >
+                  {isActive && (
+                    <motion.div 
+                      layoutId="active-pill"
+                      className="absolute left-1 w-1 h-4 bg-indigo-500 rounded-full"
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                  <item.icon className={cn(
+                    "h-4 w-4 mr-2.5 shrink-0 transition-transform group-hover:scale-110",
+                    isActive && "text-indigo-500"
+                  )} />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {item.label === "AI Chat" && !collapsed && (
+                    <span className="ml-auto text-[10px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tight shadow-sm shadow-indigo-500/20">AI</span>
+                  )}
+                </Link>
+              );
           })}
         </div>
 
@@ -141,7 +154,7 @@ export function Sidebar({ className }: { className?: string }) {
               <item.icon className="h-4 w-4 mr-2.5 shrink-0 group-hover:scale-110 transition-transform" />
               {!collapsed && <span className="truncate">{item.label}</span>}
               {!collapsed && (
-                  <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                  <div className="ml-auto transition-opacity flex items-center">
                       <PlusCircle className="h-3 w-3 text-muted-foreground hover:text-foreground transition-colors" />
                   </div>
               )}
@@ -161,7 +174,7 @@ export function Sidebar({ className }: { className?: string }) {
                         whileTap={{ scale: 0.9 }}
                         role="button"
                         onClick={handleCreate}
-                        className="opacity-0 group-hover:opacity-100 bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground rounded-lg p-1 cursor-pointer transition-all shadow-sm"
+                        className="bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground rounded-lg p-1 cursor-pointer transition-all shadow-sm"
                     >
                         <PlusCircle className="h-3.5 w-3.5" />
                     </motion.div>

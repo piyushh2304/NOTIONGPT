@@ -33,4 +33,13 @@ dist-ssr
 *.sw?
 build_log.txt
 error_log.txt
-build_matches*.txt
+server_debug.log
+server_error_log.txt
+temp_*.txt
+temp_*.json
+*.ts.build
+*.ts.check
+check-*.ts
+reproduce_*.ts
+verify_*.ts
+sync-*.ts

@@ -5,10 +5,14 @@ import {
     getDocuments,
     getDocument,
     updateDocument,
-    archiveDocument
+    archiveDocument,
+    searchDocuments,
+    getPublicDocument
 } from '../controllers/documentController';
 
 const router = express.Router();
+
+router.get('/public/:id', getPublicDocument);
 
 router.use(protect);
 
@@ -20,5 +24,7 @@ router.route('/:id')
     .get(getDocument)
     .put(updateDocument)
     .delete(archiveDocument);
+
+router.post('/search', searchDocuments);
 
 export default router;

@@ -2,12 +2,20 @@ import { EditorRoot, EditorContent } from "novel";
 import { defaultExtensions } from "./extensions";
 import { EditorBubbleMenu } from "./editor-bubble";
 import { slashCommand } from "./slash-command";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import "tippy.js/dist/tippy.css";
+import { HocuspocusProvider } from "@hocuspocus/provider";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
+import * as Y from "yjs";
+import { IndexeddbPersistence } from "y-indexeddb";
+import { useAuth } from "@/context/auth-context";
 
 interface EditorProps {
   onChange: (value: string) => void;
   initialContent?: string;
+  documentId?: string;
+  readOnly?: boolean;
 }
 
 import { DragHandleMenu } from "./drag-handle-menu";
@@ -16,23 +24,9 @@ import { useCurrentEditor } from "@tiptap/react";
 
 const ensureValidDoc = (content: any) => {
     if (!content) return { type: "doc", content: [] };
-    
-    // If it's already a valid doc with a content array, just return it
-    if (content.type === "doc" && Array.isArray(content.content)) {
-        return content;
-    }
-
-    // If it's an array, wrap it in a doc
-    if (Array.isArray(content)) {
-        return { type: "doc", content: content.filter(n => n && typeof n === 'object' && n.type) };
-    }
-
-    // If it's a single block object, wrap it in a doc
-    if (content && typeof content === 'object' && content.type) {
-        return { type: "doc", content: [content] };
-    }
-
-    // Final fallback
+    if (content.type === "doc" && Array.isArray(content.content)) return content;
+    if (Array.isArray(content)) return { type: "doc", content: content.filter(n => n && typeof n === 'object' && n.type) };
+    if (content && typeof content === 'object' && content.type) return { type: "doc", content: [content] };
     return {
         type: "doc",
         content: [
@@ -59,10 +53,8 @@ const DragHandleListener = () => {
                 const isPlusIcon = e.clientX - rect.left < rect.width / 2;
 
                 if (isPlusIcon) {
-                    // Plus icon clicked - Add new block
                     e.preventDefault();
                     e.stopPropagation();
-
                     const x = rect.right + 10;
                     const y = rect.top + (rect.height / 2);
                     const pos = editor.view.posAtCoords({ left: x, top: y });
@@ -77,17 +69,13 @@ const DragHandleListener = () => {
                         }
                     }
                 } else {
-                    // Drag icon (::) clicked - Open Menu
                     e.preventDefault(); 
                     e.stopPropagation();
-                    
-                    // Select the node associated with the handle
                     const x = rect.right + 10;
                     const y = rect.top + (rect.height / 2);
                     const pos = editor.view.posAtCoords({ left: x, top: y });
                     
                     if (pos) {
-                        // We use setNodeSelection to select the block
                         editor.commands.setNodeSelection(pos.pos);
                     }
 
@@ -110,11 +98,29 @@ const DragHandleListener = () => {
     );
 }
 
-const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdate: (editor: any) => void }) => {
+const EditorView = ({ onUpdate, extensions, provider, readOnly, initialContent }: { onUpdate: (editor: any) => void, extensions: any[], provider: HocuspocusProvider | null, readOnly?: boolean, initialContent?: string }) => {
     const { editor } = useCurrentEditor();
 
+    useEffect(() => {
+        if (editor && readOnly !== undefined) {
+            editor.setEditable(!readOnly);
+        }
+    }, [editor, readOnly]);
+
+    useEffect(() => {
+        // If readOnly and we have initialContent, set it explicitly since we don't have a provider syncing data
+        if (editor && readOnly && initialContent && editor.isEmpty) {
+             try {
+                 const content = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
+                 editor.commands.setContent(content);
+             } catch (e) {
+                 console.error("Failed to set initial content", e);
+             }
+        }
+    }, [editor, readOnly, initialContent]);
+
     const handleContainerClick = (e: React.MouseEvent) => {
-        if (!editor) return;
+        if (!editor || readOnly) return;
         
         const target = e.target as HTMLElement;
         const isWrapper = target === e.currentTarget;
@@ -122,8 +128,6 @@ const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdat
 
         if (isWrapper || isProseMirror) {
             const lastNode = editor.state.doc.lastChild;
-            
-            // If the last node is a pageLink or table, insert a new paragraph at the end
             if (lastNode && (lastNode.type.name === 'pageLink' || lastNode.type.name === 'table')) {
                  e.preventDefault();
                  editor.chain()
@@ -132,8 +136,6 @@ const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdat
                        .scrollIntoView()
                        .run();
             } else {
-                 // Otherwise focus the end. 
-                 // If the last node is already an empty paragraph, this focuses it.
                  e.preventDefault();
                  editor.chain().focus('end').run();
             }
@@ -142,13 +144,12 @@ const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdat
 
     return (
         <div 
-            className="relative min-h-[500px] w-full max-w-screen-lg bg-white sm:mb-[calc(20vh)] sm:rounded-lg border-0 shadow-none p-12 px-8 sm:px-12 cursor-text"
+            className={`relative min-h-[500px] w-full max-w-screen-lg bg-white sm:mb-[calc(20vh)] sm:rounded-lg border-0 shadow-none p-12 px-8 sm:px-12 ${readOnly ? '' : 'cursor-text'}`}
             onClick={handleContainerClick}
         >
              <EditorContent
-                extensions={[...defaultExtensions, slashCommand]}
-                initialContent={initialContent}
-                className="outline-none" // Remove default outline
+                extensions={extensions}
+                className="outline-none" 
                 editorProps={{
                      attributes: {
                          class: 'prose prose-lg dark:prose-invert prose-headings:font-title font-default focus:outline-none max-w-full',
@@ -157,50 +158,73 @@ const EditorView = ({ initialContent, onUpdate }: { initialContent: any, onUpdat
                 }}
                 onUpdate={({ editor }) => onUpdate(editor)}
              >
-                 <EditorBubbleMenu />
-                 <DragHandleListener />
-                 <TableHoverMenu />
+                 {!readOnly && <EditorBubbleMenu />}
+                 {!readOnly && <DragHandleListener />}
+                 {!readOnly && <TableHoverMenu />}
              </EditorContent>
         </div>
     );
 }
 
-export default function Editor({ onChange, initialContent }: EditorProps) {
-  const [content, setContent] = useState<any>(() => {
-      if (!initialContent) return undefined;
-      try {
-          const parsed = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
-          return ensureValidDoc(parsed);
-      } catch (e) {
-          console.warn("Failed to parse initialContent as JSON, treating as plain text:", e);
-          return ensureValidDoc(initialContent);
-      }
-  });
+const COLORS = ["#958DF1", "#F98181", "#FBBC88", "#FAF594", "#70CFF8", "#94FADB", "#B9F18D"];
 
+export default function Editor({ onChange, initialContent, documentId, readOnly = false }: EditorProps) {
+  const { user } = useAuth();
+  const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
+  
+  // Initialize Provider
   useEffect(() => {
-    // If we passed initialContent, respect it (handling both string/object)
-    if (initialContent) {
-        try {
-            const parsed = typeof initialContent === 'string' ? JSON.parse(initialContent) : initialContent;
-            setContent(ensureValidDoc(parsed));
-        } catch (e) {
-            console.warn("Failed to parse initialContent in useEffect, treating as plain text:", e);
-            setContent(ensureValidDoc(initialContent));
-        }
-    } else {
-      // Fallback to local storage if no initialContent
-      const saved = localStorage.getItem("novel-content");
-      if (saved) {
-        try {
-            setContent(JSON.parse(saved));
-        } catch(e) { console.error("Failed to parse local storage content", e); }
-      }
-    }
-  }, [initialContent]);
+      // If readOnly, we don't connect to collab server for now to keep it simple and fast
+      if (!documentId || readOnly) return;
 
-    const debounce = (func: Function, delay: number) => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const collabUrl = import.meta.env.VITE_COLLAB_URL || `${protocol}//${window.location.hostname}:1234`;
+
+      const newProvider = new HocuspocusProvider({
+          url: collabUrl,
+          name: documentId,
+          // token: "access_token", // Add auth token here if needed
+      });
+
+      setProvider(newProvider);
+
+      const persistence = new IndexeddbPersistence(documentId, newProvider.document);
+      
+      persistence.on('synced', () => {
+          console.log('Local content loaded');
+      });
+
+      return () => {
+          newProvider.destroy();
+          persistence.destroy();
+      };
+  }, [documentId, readOnly]);
+
+  const extensions = useMemo(() => {
+      if (!provider || !user || readOnly) {
+          // Fallback extensions without collaboration
+          return [...defaultExtensions, slashCommand];
+      }
+
+      return [
+          ...defaultExtensions,
+          slashCommand,
+          Collaboration.configure({
+              document: provider.document,
+          }),
+          CollaborationCursor.configure({
+              provider: provider,
+              user: {
+                  name: user.fullName || "Anonymous",
+                  color: COLORS[Math.floor(Math.random() * COLORS.length)],
+                  avatar: user.avatarUrl,
+              },
+          }),
+      ];
+  }, [provider, user, readOnly]);
+
+  const debounce = (func: Function, delay: number) => {
         const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-        
         return useCallback((...args: any[]) => {
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
             timeoutRef.current = setTimeout(() => {
@@ -210,16 +234,28 @@ export default function Editor({ onChange, initialContent }: EditorProps) {
     };
 
   const handleUpdate = (editor: any) => {
+      if (readOnly) return;
       const json = editor.getJSON();
-      window.localStorage.setItem("novel-content", JSON.stringify(json));
+      // Only call onChange for saving to DB (persistence)
+      // Real-time sync is handled by Y.js
       onChange(JSON.stringify(json));
   };
 
-  const debouncedUpdate = debounce(handleUpdate, 500);
+  const debouncedUpdate = debounce(handleUpdate, 1000);
+
+  // If readOnly, we render immediately. 
+  // If not readOnly and documentId exists, wait for provider.
+  if (documentId && !provider && !readOnly) return <div>Connecting to collaboration server...</div>;
 
   return (
     <EditorRoot>
-       <EditorView initialContent={content} onUpdate={debouncedUpdate} />
+       <EditorView 
+            onUpdate={debouncedUpdate} 
+            extensions={extensions} 
+            provider={provider}
+            readOnly={readOnly}
+            initialContent={initialContent}
+       />
     </EditorRoot>
   )
 }

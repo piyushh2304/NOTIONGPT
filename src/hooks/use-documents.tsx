@@ -42,9 +42,31 @@ export const useDocuments = () => {
                credentials: 'include' 
             });
             if (!response.ok) throw new Error('Failed to fetch');
-            const data = await response.json();
+            const text = await response.text();
+            const data = text ? JSON.parse(text) : [];
+            
+            // Cache the list
+            try {
+                const cacheKey = `documents_list_${parentDocumentId || 'root'}_${user?.orgId || 'personal'}`;
+                localStorage.setItem(cacheKey, JSON.stringify(data));
+            } catch (e) {
+                console.warn('Failed to cache document list', e);
+            }
+
             return data as Document[];
         } catch (error) {
+            console.error("Fetch failed, trying cache", error);
+            try {
+                const cacheKey = `documents_list_${parentDocumentId || 'root'}_${user?.orgId || 'personal'}`;
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    toast.info("Using offline data");
+                    return JSON.parse(cached) as Document[];
+                }
+            } catch (e) {
+                console.error("Cache read failed", e);
+            }
+
             toast.error("Failed to load documents");
             return [];
         }
@@ -65,7 +87,8 @@ export const useDocuments = () => {
             
             if (!response.ok) throw new Error('Failed to create');
             
-            const newDoc = await response.json();
+            const text = await response.text();
+            const newDoc = text ? JSON.parse(text) : null;
             toast.success("Document created");
             return newDoc;
         } catch (error) {
@@ -83,7 +106,8 @@ export const useDocuments = () => {
                 body: JSON.stringify(updates)
             });
             if (!response.ok) throw new Error('Failed to update');
-            const updated = await response.json();
+            const text = await response.text();
+            const updated = text ? JSON.parse(text) : null;
             return updated;
         } catch (error) {
             toast.error("Something went wrong");
@@ -114,10 +138,28 @@ export const useDocuments = () => {
                 credentials: 'include'
             });
             if (!response.ok) throw new Error('Failed to fetch');
-            const data = await response.json();
+            const text = await response.text();
+            const data = text ? JSON.parse(text) : null;
+            
+            if (data) {
+                try {
+                    localStorage.setItem(`document_meta_${id}`, JSON.stringify(data));
+                } catch (e) {
+                    console.warn('Failed to cache document', e);
+                }
+            }
+            
             return data as Document;
          } catch (error) {
-             // toast.error("Failed to load document"); // validation might fail on first load if redirecting
+             console.error("Fetch failed", error);
+             try {
+                const cached = localStorage.getItem(`document_meta_${id}`);
+                if (cached) {
+                    return JSON.parse(cached) as Document;
+                }
+             } catch (e) {
+                 console.error("Cache read failed", e);
+             }
              return null;
          }
     };
@@ -151,7 +193,8 @@ export const useDocuments = () => {
                credentials: 'include' 
             });
             if (!response.ok) throw new Error('Failed to fetch');
-            const data = await response.json();
+            const text = await response.text();
+            const data = text ? JSON.parse(text) : [];
             return data as Document[];
         } catch (error) {
             console.error(error);

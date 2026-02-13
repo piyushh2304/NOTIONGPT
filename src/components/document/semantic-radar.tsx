@@ -39,7 +39,8 @@ export function SemanticRadar({ content, currentDocId, onInsertLink }: SemanticR
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text: content, currentDocId }),
                 });
-                const data = await response.json();
+                const text = await response.text();
+                const data = text ? JSON.parse(text) : { suggestions: [] };
                 setSuggestions(data.suggestions || []);
             } catch (err) {
                 console.error("Failed to fetch suggestions:", err);

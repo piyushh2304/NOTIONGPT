@@ -5,6 +5,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button, Input, DotMap } from "@/components/ui/auth-elements";
 import { useAuth } from "@/context/auth-context";
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 
 export default function LoginPage(){
     const [isPasswordVisible , setIsPasswordVisible] = useState(false);
@@ -34,6 +35,25 @@ export default function LoginPage(){
         setLoading(false);
      }
     }
+
+    const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+        try {
+            setLoading(true);
+            const res = await fetch("/api/auth/google", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token: credentialResponse.credential }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || "Google Login failed");
+            login(data);
+            navigate("/dashboard");
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
  return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-[#060818] to-[#0d1023] p-4">
       <div className="flex w-full h-full items-center justify-center">
@@ -83,12 +103,32 @@ export default function LoginPage(){
                   </button>
                 </div>
               </div>
-              <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+            <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
                 <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                   {loading ? "Signing in..." : "Sign in"} <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </motion.div>
             </form>
+
+            <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-[#2a2d3a]" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-[#090b13] px-2 text-gray-500">Or continue with</span>
+                </div>
+            </div>
+
+            <div className="flex justify-center">
+                <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => {
+                        toast.error("Google Login Failed");
+                    }}
+                    theme="filled_black"
+                    shape="circle"
+                />
+            </div>
             <div className="mt-6 text-center">
                <p className="text-sm text-gray-400">Don't have an account? <Link to="/signup" className="text-blue-500 hover:text-blue-400">Sign up</Link></p>
             </div>

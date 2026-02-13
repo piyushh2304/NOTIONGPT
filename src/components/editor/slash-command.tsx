@@ -19,6 +19,10 @@ import {
   Info,
   FileText,
   ListTree,
+  Sparkles,
+  Link,
+  Brain,
+  BarChart,
 } from "lucide-react";
 import { CommandList } from "./command-list";
 
@@ -28,6 +32,79 @@ interface CommandProps {
 }
 
 const getSuggestionItems = () => [
+  {
+    title: "Ask AI",
+    description: "Tell AI what to write...",
+    searchTerms: ["ai", "ask", "prompt", "gpt"],
+    icon: <Sparkles className="h-4 w-4" />,
+    command: ({ editor, range }: CommandProps) => {
+        const instruction = window.prompt("What should I write?");
+        if (!instruction) return;
+
+        editor.chain().focus().deleteRange(range).run();
+        const { from } = editor.state.selection;
+        
+        // Insert a temporary placeholder or just start streaming
+        // We'll insert an empty text node to anchor the stream?
+        // Actually, we can just insert content as it comes.
+        
+        const context = editor.state.doc.textBetween(Math.max(0, from - 1000), from);
+
+        import("@/lib/ai-editor-service").then(({ AIEditorService }) => {
+             editor.chain().focus().insertContent("✨ Generating...").run();
+             // Select the placeholder to replace it
+             const placeholderStart = from;
+             const placeholderEnd = from + 15; // Length of "✨ Generating..."
+             
+             let hasReplacedPlaceholder = false;
+
+             AIEditorService.streamGenerate({
+                 context,
+                 instruction,
+                 onStream: (chunk) => {
+                     if (!hasReplacedPlaceholder) {
+                         // First chunk: delete placeholder and insert chunk
+                         editor.chain().focus()
+                            .deleteRange({ from: placeholderStart, to: placeholderEnd }) // Adjust if cursor moved? Ideally use a transaction/mark.
+                            .insertContent(chunk) 
+                            .run();
+                         hasReplacedPlaceholder = true;
+                     } else {
+                         // Subsequent chunks: append
+                         editor.chain().focus().insertContent(chunk).run();
+                     }
+                 },
+                 onComplete: () => {
+                     // nothing for now
+                 }
+             });
+        });
+    },
+  },
+  {
+    title: "Continue writing",
+    description: "Let AI finish your thought.",
+    searchTerms: ["continue", "next", "more"],
+    icon: <Sparkles className="h-4 w-4 text-purple-400" />,
+    command: ({ editor, range }: CommandProps) => {
+        editor.chain().focus().deleteRange(range).run();
+        const { from } = editor.state.selection;
+        const context = editor.state.doc.textBetween(Math.max(0, from - 2000), from);
+
+        import("@/lib/ai-editor-service").then(({ AIEditorService }) => {
+             let hasStarted = false;
+             AIEditorService.streamGenerate({
+                 context,
+                 onStream: (chunk) => {
+                     if (!hasStarted) {
+                         hasStarted = true;
+                     }
+                     editor.chain().focus().insertContent(chunk).run();
+                 }
+             });
+        });
+    },
+  },
   {
     title: "Text",
     description: "Start writing with plain text.",
@@ -196,6 +273,36 @@ const getSuggestionItems = () => [
     icon: <ListTree className="h-4 w-4" />, // Reusing ListTree or could import 'Kanban' or similar if available, ListTree is fine
     command: ({ editor, range }: CommandProps) => {
       editor.chain().focus().deleteRange(range).insertKanbanBoard().run();
+    },
+  },
+  {
+    title: "Embed",
+    description: "Embed a website, chart, or doc.",
+    searchTerms: ["embed", "iframe", "chart", "sheet", "excel", "google"],
+    icon: <Link className="h-4 w-4" />,
+    command: ({ editor, range }: CommandProps) => {
+      const url = window.prompt("Enter the URL to embed (e.g. Google Sheets, Excel Online, etc.):");
+      if (url) {
+          editor.chain().focus().deleteRange(range).setEmbed({ src: url }).run();
+      }
+    },
+  },
+  {
+    title: "Mind Map",
+    description: "Visualize ideas with nodes.",
+    searchTerms: ["mindmap", "brainstorm", "nodes", "graph"],
+    icon: <Brain className="h-4 w-4" />,
+    command: ({ editor, range }: CommandProps) => {
+      editor.chain().focus().deleteRange(range).setMindMap().run();
+    },
+  },
+  {
+    title: "Report",
+    description: "Workspace analytics & rollup.",
+    searchTerms: ["report", "analytics", "chart", "stats"],
+    icon: <BarChart className="h-4 w-4" />,
+    command: ({ editor, range }: CommandProps) => {
+      editor.chain().focus().deleteRange(range).setReport().run();
     },
   },
 ];

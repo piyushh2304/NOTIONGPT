@@ -22,6 +22,9 @@ import { PageLink } from "./extensions/page-link";
 import { TableHeader } from '@tiptap/extension-table-header'
 import { TableRow } from '@tiptap/extension-table-row'
 import { KanbanBoardExtension } from "./extensions/kanban";
+import { EmbedExtension } from "./extensions/embed";
+import { MindMapExtension } from "./extensions/mind-map";
+import { ReportExtension } from "./extensions/report";
 
 // Mock file uploader for drag/drop images
 const fileUploadHandler = (file: File) => {
@@ -242,7 +245,11 @@ export const defaultExtensions = [
     TableCell,
     CalloutExtension,
     PageLink,
+    PageLink,
     KanbanBoardExtension,
+    EmbedExtension,
+    MindMapExtension,
+    ReportExtension
 ];
 
 // Optional: handle drag & drop image upload

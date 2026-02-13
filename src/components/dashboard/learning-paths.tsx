@@ -25,7 +25,8 @@ export const LearningPaths = () => {
             setIsAnalyzing(true);
             const response = await fetch(`/api/graph/analyze-gaps?orgId=${user?.orgId}`);
             if (!response.ok) throw new Error("Analysis failed");
-            const data = await response.json();
+            const text = await response.text();
+            const data = text ? JSON.parse(text) : { gaps: [] };
             setGaps(data.gaps || []);
         } catch (error) {
             console.error("Failed to fetch learning paths:", error);

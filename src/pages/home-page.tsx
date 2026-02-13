@@ -6,7 +6,6 @@ import { formatDistanceToNow } from "date-fns";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LearningPaths } from "@/components/dashboard/learning-paths";
 
 const HomePage = () => {
     const { getAllDocuments } = useDocuments();
@@ -84,7 +83,6 @@ const HomePage = () => {
                 </section>
 
                 {/* AI Learning Paths */}
-                <LearningPaths />
                 
                 {/* Recently Visited */}
                  <section className="space-y-4">

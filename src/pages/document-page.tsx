@@ -7,15 +7,21 @@ import Editor from '@/components/editor/editor';
 import { Toolbar } from '@/components/document/toolbar';
 import { Cover } from '@/components/document/cover';
 import { format } from 'date-fns';
-import { Star, MoreHorizontal, Share } from 'lucide-react';
+import { Star, MoreHorizontal, Share, WifiOff, CheckCircle, Cloud, Download, Monitor, PanelRightClose } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SharePopover } from '@/components/document/share-popover';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu';
 import { FlashcardViewer } from '@/components/document/flashcard-viewer';
 import { MindMapViewer } from '@/components/document/mind-map-viewer';
 import { QuizViewer } from '@/components/document/quiz-viewer';
 import { StudyPlanViewer } from '@/components/document/study-plan-viewer';
 import { CodingQuestionsViewer } from '@/components/document/coding-questions-viewer';
-import { SemanticRadar } from '@/components/document/semantic-radar';
 import { toast } from 'sonner';
 
 export default function DocumentPage() {
@@ -30,6 +36,9 @@ export default function DocumentPage() {
     const [showQuiz, setShowQuiz] = useState(false);
     const [showStudyPlan, setShowStudyPlan] = useState(false);
     const [showCodingQuestions, setShowCodingQuestions] = useState(false);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    // Temporary local state for full width (could persist in db or localstorage)
+    const [isFullWidth, setIsFullWidth] = useState(false);
     const titleTimeoutRef = useRef<any>(null);
 
     const documentId = params.documentId;
@@ -43,6 +52,16 @@ export default function DocumentPage() {
             setIsLoading(false);
         };
         loadDocument();
+
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
     }, [documentId]);
 
     const onChange = async (content: string) => {
@@ -101,13 +120,16 @@ export default function DocumentPage() {
             });
 
             if (response.ok) {
-                const data = await response.json();
-                setDocument(prev => prev ? { 
-                    ...prev, 
-                    masteryLevel: data.masteryLevel, 
-                    nextReviewAt: data.nextReviewAt,
-                    lastReviewedAt: new Date().toISOString()
-                } : null);
+                const text = await response.text();
+                const data = text ? JSON.parse(text) : null;
+                if (data) {
+                    setDocument(prev => prev ? { 
+                        ...prev, 
+                        masteryLevel: data.masteryLevel, 
+                        nextReviewAt: data.nextReviewAt,
+                        lastReviewedAt: new Date().toISOString()
+                    } : null);
+                }
             }
         } catch (error) {
             console.error("Failed to record review:", error);
@@ -149,7 +171,9 @@ export default function DocumentPage() {
                 });
 
                 if (!response.ok) throw new Error("Research failed");
-                const data = await response.json();
+                const text = await response.text();
+                const data = text ? JSON.parse(text) : null;
+                if (!data) throw new Error("Research engine returned empty result");
 
                 // Create a new document for the research
                 const newTitle = `Research: ${query}`;
@@ -231,9 +255,37 @@ export default function DocumentPage() {
                     >
                         <Star size={18} className={isFavorite ? "fill-yellow-400 text-yellow-400" : ""} />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal size={18} />
-                    </Button>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal size={18} />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => toast.success("Page available offline", { description: "This page has been saved to your device." })}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Make available offline
+                            </DropdownMenuItem>
+                             <DropdownMenuSeparator />
+                             <div className="p-2 text-xs font-medium text-muted-foreground">View Options</div>
+                             <DropdownMenuItem onClick={() => setIsFullWidth(!isFullWidth)}>
+                                <Monitor className="h-4 w-4 mr-2" />
+                                {isFullWidth ? "Standard Width" : "Full Width"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-muted-foreground text-xs" disabled>
+                                Last edited by you
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {!isOnline && (
+                        <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md text-xs font-medium border border-amber-200">
+                            <WifiOff className="h-3.5 w-3.5" />
+                            Offline
+                        </div>
+                    )}
                 </div>
 
                 <Cover 
@@ -274,8 +326,9 @@ export default function DocumentPage() {
                     questions={document.codingQuestions || []}
                     onComplete={(solved) => handleReviewComplete(solved, (document.codingQuestions?.length || 1))}
                 />
-
-                <div className="md:max-w-3xl lg:max-w-4xl mx-auto">
+                
+                {/* Dynamically adjust max-width */}
+                <div className={isFullWidth ? "max-w-full px-12 mx-auto" : "md:max-w-3xl lg:max-w-4xl mx-auto"}>
                     <div className="px-14 group pb-[11px] pt-12">
                         <Toolbar 
                             initialData={document} 
@@ -326,15 +379,11 @@ export default function DocumentPage() {
                     <Editor
                         onChange={onChange}
                         initialContent={document.content}
+                        documentId={documentId}
                     />
                 </div>
             </div>
             
-            <SemanticRadar 
-                content={document.content || ""} 
-                currentDocId={documentId!} 
-                onInsertLink={handleInsertLink}
-            />
         </div>
     );
 }

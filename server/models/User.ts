@@ -5,6 +5,7 @@ export interface IUser extends Document {
     email: string;
     password?: string;
     fullName: string;
+    avatarUrl?: string;
     googleId?: string;
     lastActiveDate?: Date;
     streakCount: number;

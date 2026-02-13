@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/auth-context";
 import LandingPage from "./pages/landing-page";
@@ -8,18 +9,20 @@ import SignupPage from "./pages/auth/signup";
 import DocumentPage from "./pages/document-page";
 import AiChatPage from "./pages/ai-chat-page";
 import MasteryPage from "./pages/mastery-page";
-import GraphPage from "./pages/graph-page";
 import SearchPage from "./pages/search-page";
 import WorkspaceSynthesisPage from "./pages/synthesis-page";
+import PublicDocumentPage from "./pages/public-document-page";
 
 import HomePage from "./pages/home-page";
 
 function App() {
   return (
     <AuthProvider>
+        <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       <Router>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/p/:documentId" element={<PublicDocumentPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           {/* Dashboard Shell */}
@@ -31,7 +34,6 @@ function App() {
             <Route path="synthesis" element={<WorkspaceSynthesisPage />} />
             <Route path="ai-chat" element={<AiChatPage />} />
             <Route path="mastery" element={<MasteryPage />} />
-            <Route path="graph" element={<GraphPage />} />
             <Route path="inbox" element={<div className="p-6">Inbox Placeholder</div>} />
             <Route path="settings" element={<div className="p-6">Settings Placeholder</div>} />
             {/* Catch-all for dashboard sub-routes */}
@@ -40,6 +42,7 @@ function App() {
         </Routes>
         <Toaster position="bottom-center" />
       </Router>
+      </GoogleOAuthProvider>
     </AuthProvider>
   );
 }

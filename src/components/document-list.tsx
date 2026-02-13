@@ -139,16 +139,23 @@ export const DocumentList = ({
 
     return (
         <>
-            <p
+            <div 
                 style={{ paddingLeft: level ? `${(level * 12) + 25}px` : undefined }}
                 className={cn(
-                    "hidden text-sm font-medium text-muted-foreground/80",
+                    "hidden text-sm font-medium text-muted-foreground/80 py-1",
                     expanded && "last:block",
                     level === 0 && "hidden"
                 )}
             >
-                No pages inside
-            </p>
+                <div 
+                    role="button" 
+                    onClick={(e) => onCreate(e, parentDocumentId)}
+                    className="flex items-center gap-x-2 hover:text-foreground transition-colors cursor-pointer"
+                >
+                    <Plus className="h-3 w-3" />
+                    <span>Add a page</span>
+                </div>
+            </div>
             {documents.map((doc) => (
                 <div key={doc._id}>
                     <Item
@@ -267,7 +274,7 @@ const Item = ({
                             onClick={(e) => e.stopPropagation()}
                             asChild
                          >
-                             <div role="button" className="opacity-0 group-hover:opacity-100 h-full ml-auto rounded-sm hover:bg-neutral-300 dark:hover:bg-neutral-600">
+                             <div role="button" className="h-full ml-auto rounded-sm hover:bg-neutral-300 dark:hover:bg-neutral-600">
                                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                              </div>
                          </DropdownMenuTrigger>
@@ -303,7 +310,7 @@ const Item = ({
                     <div
                         role="button"
                         onClick={onCreate}
-                        className="opacity-0 group-hover:opacity-100 h-full ml-auto rounded-sm hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                        className="h-full ml-auto rounded-sm hover:bg-neutral-300 dark:hover:bg-neutral-600"
                     >
                         <Plus className="h-4 w-4 text-muted-foreground" />
                     </div>

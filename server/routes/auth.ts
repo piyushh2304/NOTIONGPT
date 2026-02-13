@@ -160,4 +160,81 @@ router.post('/activity', protect, async (req: AuthRequest, res) => {
     }
 });
 
+import { OAuth2Client } from 'google-auth-library';
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// @route POST /api/auth/google
+router.post('/google', async (req, res) => {
+    const { token } = req.body;
+
+    try {
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+
+        if (!payload) {
+            return res.status(400).json({ message: 'Invalid Google Token' });
+        }
+
+        const { email, name, sub: googleId, picture } = payload;
+
+        if (!email) {
+            return res.status(400).json({ message: 'Email not found in Google Token' });
+        }
+
+        let user = await User.findOne({ email });
+
+        if (user) {
+            // Update googleId if not present (linking accounts)
+            if (!user.googleId) {
+                user.googleId = googleId;
+                await user.save();
+            }
+        } else {
+            // Create new user
+            user = await User.create({
+                fullName: name || 'User',
+                email,
+                googleId,
+                avatarUrl: picture,
+                password: '', // No password for Google Auth users
+            });
+
+            // Create default organization
+            const orgName = `${user.fullName}'s Workspace`;
+            await Organization.create({
+                name: orgName,
+                slug: orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                ownerId: user._id,
+                members: [{ userId: user._id, role: 'ADMIN' }]
+            });
+        }
+
+        const authToken = generateToken(user._id.toString());
+
+        res.cookie('token', authToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+        });
+
+        const org = await Organization.findOne({ 'members.userId': user._id });
+
+        res.json({
+            _id: user._id,
+            fullName: user.fullName,
+            email: user.email,
+            orgId: org?._id
+        });
+
+    } catch (error) {
+        console.error("Google Auth Error:", error);
+        res.status(500).json({ message: 'Google Auth Failed', error });
+    }
+});
+
 export default router;

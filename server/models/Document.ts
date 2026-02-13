@@ -11,7 +11,18 @@ export interface IDocument extends Document {
     isArchived: boolean;
     isPublished: boolean;
     isPublic: boolean;
-    allowedUsers: string[];
+    // allowedUsers: string[]; // Deprecated in favor of collaborators
+    collaborators: Array<{
+        userId: mongoose.Types.ObjectId;
+        email: string; // Cache email for easier display
+        role: 'VIEWER' | 'COMMENTER' | 'EDITOR' | 'OWNER';
+        addedAt: Date;
+    }>;
+    recurrence?: {
+        rule: string; // RRule string
+        nextRun: Date;
+        lastRun?: Date;
+    };
     flashcards?: any;
     mindmap?: any;
     quiz?: any;
@@ -35,7 +46,18 @@ const DocumentSchema: Schema = new Schema({
     isArchived: { type: Boolean, default: false },
     isPublished: { type: Boolean, default: false },
     isPublic: { type: Boolean, default: false }, // "Anyone with link" access
-    allowedUsers: [{ type: String }], // List of emails allowed to access
+    // allowedUsers: [{ type: String }],
+    collaborators: [{
+        userId: { type: Schema.Types.ObjectId, ref: 'User' },
+        email: { type: String },
+        role: { type: String, enum: ['VIEWER', 'COMMENTER', 'EDITOR', 'OWNER'], default: 'VIEWER' },
+        addedAt: { type: Date, default: Date.now }
+    }],
+    recurrence: {
+        rule: { type: String },
+        nextRun: { type: Date },
+        lastRun: { type: Date }
+    },
     flashcards: { type: Schema.Types.Mixed }, // Array of { front: string, back: string }
     mindmap: { type: Schema.Types.Mixed }, // { nodes: [], edges: [] } for ReactFlow
     quiz: { type: Schema.Types.Mixed }, // Array of { question: string, options: string[], answer: string }
@@ -48,5 +70,6 @@ const DocumentSchema: Schema = new Schema({
 // Index for faster queries within an organization and hierarchy
 DocumentSchema.index({ orgId: 1, parentDocument: 1 });
 DocumentSchema.index({ userId: 1 });
+DocumentSchema.index({ title: 'text' });
 
 export default mongoose.model<IDocument>('document', DocumentSchema);
