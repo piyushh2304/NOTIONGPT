@@ -45,7 +45,7 @@ export const performResearch = async (req: Request, res: Response): Promise<void
         // 2. Synthesize findings into a structured document
         const chatModel = new ChatGoogleGenerativeAI({
             apiKey: process.env.GOOGLE_API_KEY,
-            model: "gemini-1.5-flash",
+            model: "gemini-2.5-flash",
             maxOutputTokens: 4096,
         });
 

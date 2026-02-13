@@ -189,7 +189,7 @@ export const chatWithDocs = async (req: AuthRequest, res: Response): Promise<voi
 
             const chatModel = new ChatGoogleGenerativeAI({
                 apiKey: process.env.GOOGLE_API_KEY,
-                model: "gemini-1.5-flash",
+                model: "gemini-2.5-flash",
                 maxOutputTokens: 4096,
                 temperature: 0.1,
             });
@@ -351,7 +351,7 @@ export const chatWithDocs = async (req: AuthRequest, res: Response): Promise<voi
         try {
             const chatModel = new ChatGoogleGenerativeAI({
                 apiKey: process.env.GOOGLE_API_KEY,
-                model: "gemini-1.5-flash",
+                model: "gemini-2.5-flash",
                 maxOutputTokens: 2048,
             });
 
