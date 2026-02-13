@@ -60,18 +60,33 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
-import { startCollabServer } from "./collab-server";
+import { collabServer } from "./collab-server";
 import { initRecurrenceWorker } from "./workers/recurrence";
+import http from "http";
+import { WebSocketServer } from 'ws';
 
 const startServer = async () => {
     try {
         await connectDB();
         console.log("DB Connected, starting server...");
-        await startCollabServer();
+
         initRecurrenceWorker();
 
-        app.listen(PORT, () => {
+        const server = http.createServer(app);
+
+        // Create a WebSocket server that doesn't start its own server
+        const wss = new WebSocketServer({ noServer: true });
+
+        // Attach Hocuspocus to the same HTTP server
+        server.on('upgrade', (request, socket, head) => {
+            wss.handleUpgrade(request, socket, head, (ws) => {
+                collabServer.hocuspocus.handleConnection(ws, request);
+            });
+        });
+
+        server.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
+            console.log(`Collab server attached to the same port.`);
         }).on('error', (err) => {
             console.error("Server failed to start:", err);
         });
