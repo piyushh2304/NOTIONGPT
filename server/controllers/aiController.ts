@@ -189,47 +189,47 @@ export const chatWithDocs = async (req: AuthRequest, res: Response): Promise<voi
 
             const chatModel = new ChatGoogleGenerativeAI({
                 apiKey: process.env.GOOGLE_API_KEY,
-                model: "gemini-2.5-flash",
+                model: "gemini-1.5-flash",
                 maxOutputTokens: 4096,
                 temperature: 0.1,
             });
 
             res.write("🌐 **Gathering Information & Synthesizing Masterpiece...**\n");
 
-            const synthesisPrompt = `You are a Elite Document Architect. Create a MASTERPIECE document in TipTap JSON format.
+            const synthesisPrompt = `You are an Elite Document Architect and Research Analyst. 
+            Your goal is to create a COMPREHENSIVE, DEEP-DIVE document based on the research provided.
             
             User Request: "${message}"
             
-            Context:
-            ${searchResultsText || contextText || "Use your internal knowledge."}
+            RESEARCH DATA (USE THIS AS THE PRIMARY SOURCE):
+            ${searchResultsText || contextText || "Search failed. Use your vast internal knowledge to provide a detailed report."}
             
             Verified Image URLs to use (PRIORITIZE THESE):
-            ${foundImages.length > 0 ? foundImages.join("\n") : "No specific image URLs discovered. Use high-quality public domain URLs from Wikimedia.org or similar platforms."}
+            ${foundImages.length > 0 ? foundImages.join("\n") : "None found. Use high-quality Wikimedia Commons URLs."}
             
-            Requirements:
-            1. **Format**: Output a single JSON object with "title", "coverImage", and "content" (the TipTap JSON tree).
-            2. **Structure**: 
-               - Start with a H1 title in the content.
-               - Use multiple H2 and H3 sections for deep structure.
-            3. **Visuals (CRITICAL)**:
-               - Use actual URLs from the "Verified Image URLs" list above.
-               - If no verified URLs are suitable, use high-quality, working URLs from Wikimedia Commons (Wikimedia.org) or Pexels/Pixabay. 
-               - **DO NOT** use Unsplash Source URLs as they are deprecated.
-               - Embed at least 2 relevant images within the content using the "image" node type.
-               - Select a stunning "coverImage" for the document header.
+            STRICT REQUIREMENTS:
+            1. **Format**: Output a single JSON object with "title", "coverImage", and "content" (TipTap JSON tree).
+            2. **Depth**: The document must be at least 1500 words long. Use deep sections (H1, H2, H3).
+            3. **Content Quality**: 
+               - DO NOT summarize. Provide detailed explanations, data points, and context.
+               - Extract and include relevant links and references from the research data.
+               - Include examples, tables (if useful), and detailed paragraphs.
+            4. **Visuals**:
+               - Use at least 3 images from the verified list or Wikimedia.
+               - Choose a beautiful coverImage.
+            5. **TipTap Schema**:
+               {
+                 "type": "doc",
+                 "content": [
+                   { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "..." }] },
+                   { "type": "paragraph", "content": [{ "type": "text", "text": "..." }] },
+                   { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "..." }] },
+                   { "type": "image", "attrs": { "src": "...", "alt": "..." } },
+                   { "type": "bulletList", "content": [{ "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "..." }] }] }] }
+                 ]
+               }
             
-            TipTap Content Schema Hint:
-            {
-              "type": "doc",
-              "content": [
-                { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "..." }] },
-                { "type": "image", "attrs": { "src": "https://source.unsplash.com/featured/?...", "alt": "..." } },
-                { "type": "paragraph", "content": [{ "type": "text", "text": "..." }] },
-                { "type": "codeBlock", "attrs": { "language": "python" }, "content": [{ "type": "text", "text": "..." }] }
-              ]
-            }
-            
-            Output ONLY the raw JSON. No markdown wrappers.`;
+            Output ONLY raw JSON. No markdown backticks.`;
 
             try {
                 const docResponse = await chatModel.invoke([
@@ -351,7 +351,7 @@ export const chatWithDocs = async (req: AuthRequest, res: Response): Promise<voi
         try {
             const chatModel = new ChatGoogleGenerativeAI({
                 apiKey: process.env.GOOGLE_API_KEY,
-                model: "gemini-2.5-flash",
+                model: "gemini-1.5-flash",
                 maxOutputTokens: 2048,
             });
 
