@@ -56,7 +56,8 @@ router.post('/signup', async (req, res) => {
             orgId: org._id
         });
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error });
+        console.error("Signup error:", error);
+        res.status(500).json({ message: 'Server error', error: error instanceof Error ? error.message : error });
     }
 });
 
