@@ -35,7 +35,7 @@ router.post('/signup', async (req, res) => {
         const orgName = `${fullName}'s Workspace`;
         const org = await Organization.create({
             name: orgName,
-            slug: orgName.toLowerCase().replace(/\s+/g, '-'),
+            slug: `${orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${Math.random().toString(36).substring(2, 7)}`,
             ownerId: user._id,
             members: [{ userId: user._id, role: 'ADMIN' }]
         });
